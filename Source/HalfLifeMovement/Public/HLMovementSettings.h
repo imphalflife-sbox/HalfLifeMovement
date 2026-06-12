@@ -13,6 +13,7 @@ struct FHLMovementSettings
     // Slope/ramp handling:
     bool  bMaintainHorizontalVelocity = false; // false: velocity follows ramps (launch off crests, no free up-slope speed)
     float SlopeGravityScale = 0.0f;            // >0: gravity-along-slope while walking (downhill speed gain; modest values)
+    float WalkableFloorAngle = -1.0f;          // <0: leave vanilla; >=0: max walkable slope (deg). Lower => steeper ramps become surfable (slide instead of walk)
     FHLMoveParams Params;            // accel/airaccel/friction/cap/maxspeed/sprintmaxspeed
     bool  bSpeedometer = true;
     bool  bSpeedometerJumpSpeeds = true;

@@ -63,6 +63,13 @@ namespace HLMovementHooks
                 // at a ramp crest so you launch into the air when you hit a ramp fast.
                 Self->bMaintainHorizontalGroundVelocity = S.bMaintainHorizontalVelocity;
 
+                // Lowering the walkable angle makes steeper ramps non-walkable, so you slide/fall on
+                // them (surf) instead of walking up them. <0 leaves the vanilla angle untouched.
+                if (S.WalkableFloorAngle >= 0.0f)
+                {
+                    Self->SetWalkableFloorAngle(S.WalkableFloorAngle);
+                }
+
                 if (Self->MovementMode == MOVE_Walking)
                 {
                     FVector V = Self->Velocity;

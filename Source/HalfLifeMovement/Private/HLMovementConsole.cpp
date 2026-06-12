@@ -57,6 +57,9 @@ namespace HLMovementConsole
         static FAutoConsoleVariableRef CVarSlopeGravity(
             TEXT("HL.SlopeGravity"), S.SlopeGravityScale,
             TEXT("Gravity-along-slope while walking (downhill speed gain). 0 = off; ~1 = full. Causes slow slide on steep ground."));
+        static FAutoConsoleVariableRef CVarWalkableAngle(
+            TEXT("HL.WalkableFloorAngle"), S.WalkableFloorAngle,
+            TEXT("Max walkable slope in degrees. <0 = vanilla. Lower (e.g. 30) makes steeper ramps surfable (slide instead of walk)."));
 
         static FAutoConsoleVariableRef CVarSpeedo(
             TEXT("HL.Speedometer"), S.bSpeedometer, TEXT("Show the speedometer (0/1)."));
