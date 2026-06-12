@@ -1,10 +1,11 @@
 #include "HalfLifeMovement.h"
+#include "HLMovementHooks.h"
 
 #define LOCTEXT_NAMESPACE "FHalfLifeMovementModule"
 
 void FHalfLifeMovementModule::StartupModule()
 {
-	// Hook registration is added in a later task (Phase 2).
+	HLMovementHooks::RegisterHooks();
 }
 
 void FHalfLifeMovementModule::ShutdownModule()
