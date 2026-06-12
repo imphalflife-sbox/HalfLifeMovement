@@ -178,27 +178,6 @@ namespace HLMovementHooks
                     if (S.bDebug) { FHLDebugState::Get().bSurfing = bSurfingNow; }
                 }
 
-                // Parachute momentum carry: the vanilla parachute scrubs your hard-won horizontal speed.
-                // While parachuting we keep the carried horizontal velocity (gentle decay = glide far),
-                // and leave vanilla in charge of the slow vertical descent. So: surf off a hill, deploy,
-                // and glide across the map. (Jetpack keeps momentum already -- it thrusts while Falling,
-                // where our air model preserves horizontal velocity.)
-                {
-                    static FVector2D ChuteHVel = FVector2D::ZeroVector;
-                    static bool bWasChuting = false;
-                    const bool bChuting = (Self->MovementMode == MOVE_Custom
-                        && Self->CustomMovementMode == static_cast<uint8>(ECustomMovementMode::CMM_Parachute));
-                    if (S.bCarryParachute && bChuting)
-                    {
-                        if (!bWasChuting) { ChuteHVel = FVector2D(Self->Velocity.X, Self->Velocity.Y); } // seed on deploy
-                        const float Decay = FMath::Clamp(S.ParachuteDragScale * DeltaTime, 0.0f, 1.0f);
-                        ChuteHVel *= (1.0f - Decay);
-                        Self->Velocity.X = ChuteHVel.X;
-                        Self->Velocity.Y = ChuteHVel.Y;
-                    }
-                    bWasChuting = bChuting;
-                }
-
                 // Singleplayer: only the local player reaches here, so static last-frame state is fine.
                 static uint8 LastMode = MOVE_None;
                 static FVector LastVelocity = FVector::ZeroVector;
