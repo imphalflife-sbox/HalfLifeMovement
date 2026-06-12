@@ -43,6 +43,9 @@ struct FHLSlideAccess : public UCharacterMovementComponent
     using UCharacterMovementComponent::ComputeSlideVector;
 };
 
+// Exact signature for ComputeSlideVector (it's overloaded, so the hook needs an explicit type).
+using FHLComputeSlideSig = FVector(UCharacterMovementComponent::*)(const FVector&, float, const FVector&, const FHitResult&) const;
+
 namespace HLMovementHooks
 {
     void RegisterHooks()
@@ -168,7 +171,7 @@ namespace HLMovementHooks
         // collapses your speed. During surf we override it to the plain plane-projected slide (what Quake
         // PM_FlyMove effectively does), so the character actually climbs the ramp and keeps its speed.
         // ComputeSlideVector is a base UCharacterMovementComponent method (FG does not override it).
-        SUBSCRIBE_METHOD_VIRTUAL(FHLSlideAccess::ComputeSlideVector, Sample,
+        SUBSCRIBE_METHOD_EXPLICIT_VIRTUAL(FHLComputeSlideSig, FHLSlideAccess::ComputeSlideVector, Sample,
             [](auto& Scope, const UCharacterMovementComponent* Self, const FVector& Delta, float Time,
                const FVector& Normal, const FHitResult& Hit)
             {
