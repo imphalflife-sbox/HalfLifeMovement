@@ -36,6 +36,13 @@ static FVector HLComputeWishDir(const UFGCharacterMovementComponent* CMC)
     return Accel.GetSafeNormal();
 }
 
+// Surf clip-and-carry (mirrors Quake PM_FlyMove): the SlideAlongSurface clip computes the along-ramp
+// velocity -- including the UPWARD component redirected from horizontal speed -- but UE's PhysFalling
+// re-derives velocity right after and drops that upward Z. We stash the clipped velocity here and
+// re-assert it in the post-move TickComponent hook. Singleplayer: only the local player writes these.
+static FVector GHLSurfVel = FVector::ZeroVector;
+static bool    GHLSurfedThisFrame = false;
+
 namespace HLMovementHooks
 {
     void RegisterHooks()
@@ -126,6 +133,14 @@ namespace HLMovementHooks
                 FHLMovementSettings& S = FHLMovementSettings::Get();
                 if (!S.bEnabled || !HLIsLocalPlayerMovement(Self)) { return; }
 
+                // Surf clip-and-carry: re-assert the along-ramp velocity (incl. the upward component
+                // converted from horizontal speed) that UE's PhysFalling re-derivation just dropped.
+                if (S.bSurf && GHLSurfedThisFrame)
+                {
+                    Self->Velocity = GHLSurfVel;
+                }
+                GHLSurfedThisFrame = false;
+
                 // Singleplayer: only the local player reaches here, so static last-frame state is fine.
                 static uint8 LastMode = MOVE_None;
                 static FVector LastVelocity = FVector::ZeroVector;
@@ -215,6 +230,8 @@ namespace HLMovementHooks
                 if (S.bSurf && Self->MovementMode == MOVE_Falling && Normal.Z < Self->GetWalkableFloorZ())
                 {
                     Self->Velocity = HLMovementCore::ClipVelocity(Self->Velocity, Normal, 1.0f);
+                    GHLSurfVel = Self->Velocity;     // carry past PhysFalling's velocity re-derivation
+                    GHLSurfedThisFrame = true;
                 }
                 // Do not cancel -- let vanilla still slide the position delta along the surface.
             });
