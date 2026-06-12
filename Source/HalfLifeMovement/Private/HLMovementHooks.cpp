@@ -11,6 +11,12 @@
 #include "CollisionQueryParams.h"
 #include "Components/SceneComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "FGCharacterPlayer.h"
+#include "Equipment/FGEquipment.h"
+#include "Equipment/FGJetPack.h"
+#include "Equipment/FGParachute.h"
+#include "InputMappingContext.h"
+#include "EnhancedInputLibrary.h"
 
 namespace HLMovementHooks
 {
@@ -35,6 +41,33 @@ static FVector HLComputeWishDir(const UFGCharacterMovementComponent* CMC)
     FVector Accel = CMC->GetCurrentAcceleration();
     Accel.Z = 0.0f;
     return Accel.GetSafeNormal();
+}
+
+// Move equipment deploy/thrust (parachute, jetpack) off the jump key so Space is pure bhop. Each of
+// those equipments has its own InputMappingContext mapping its deploy/thrust action to Space; we
+// rebind any Space mapping in those contexts to ToKey and rebuild. Idempotent: once remapped there
+// are no Space mappings left, so it does nothing on later frames.
+static void HLMoveEquipmentBindOffJump(const UFGCharacterMovementComponent* Self, FKey ToKey)
+{
+    const AFGCharacterPlayer* Player = Self ? Cast<AFGCharacterPlayer>(Self->GetCharacterOwner()) : nullptr;
+    if (Player == nullptr) { return; }
+    for (AFGEquipment* Eq : Player->GetActiveEquipments())
+    {
+        if (Eq == nullptr || !(Eq->IsA<AFGJetPack>() || Eq->IsA<AFGParachute>())) { continue; }
+        UInputMappingContext* IMC = Eq->GetMappingContext();
+        if (IMC == nullptr) { continue; }
+        bool bChanged = false;
+        const int32 Num = IMC->GetMappings().Num();
+        for (int32 i = 0; i < Num; ++i)
+        {
+            if (IMC->GetMappings()[i].Key == EKeys::SpaceBar)
+            {
+                IMC->GetMapping(i).Key = ToKey;
+                bChanged = true;
+            }
+        }
+        if (bChanged) { UEnhancedInputLibrary::RequestRebuildControlMappingsForContext(IMC); }
+    }
 }
 
 // Surf: the TickComponent (post-move) hook maintains the player's velocity while in contact with a
@@ -134,6 +167,9 @@ namespace HLMovementHooks
             {
                 FHLMovementSettings& S = FHLMovementSettings::Get();
                 if (!S.bEnabled || !HLIsLocalPlayerMovement(Self)) { return; }
+
+                // Keep Space free for bhop: move parachute/jetpack deploy+thrust onto Left Alt.
+                if (S.bMoveEquipOffJump) { HLMoveEquipmentBindOffJump(Self, EKeys::LeftAlt); }
 
                 // Surf integration (PM_FlyMove-style, run where the velocity we set survives UE's
                 // re-derivation): while airborne and in contact with a non-walkable ramp below us, we

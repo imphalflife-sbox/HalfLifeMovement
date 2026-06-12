@@ -7,6 +7,7 @@ struct FHLMovementSettings
 {
     bool  bEnabled = true;
     bool  bAutoHop = true;
+    bool  bMoveEquipOffJump = true;  // move parachute deploy / jetpack thrust off the jump key (Space) onto Left Alt, so Space is pure bhop
     bool  bCarryParachute = true;
     bool  bCarryJetpack = true;
     float ParachuteDragScale = 0.25f;

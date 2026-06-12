@@ -16,6 +16,7 @@ namespace HLMovementConsole
         const FString File = HLConfigFile();
         GConfig->SetBool (HLSection, TEXT("Enabled"),                  S.bEnabled, File);
         GConfig->SetBool (HLSection, TEXT("AutoHop"),                  S.bAutoHop, File);
+        GConfig->SetBool (HLSection, TEXT("MoveEquipOffJump"),         S.bMoveEquipOffJump, File);
         GConfig->SetBool (HLSection, TEXT("MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity, File);
         GConfig->SetBool (HLSection, TEXT("SlopeLandBoost"),           S.bSlopeLandBoost, File);
         GConfig->SetBool (HLSection, TEXT("Surf"),                     S.bSurf, File);
@@ -47,6 +48,7 @@ namespace HLMovementConsole
         // Each Get* leaves the value untouched (keeps the baked default) if the key isn't present.
         GConfig->GetBool (HLSection, TEXT("Enabled"),                  S.bEnabled, File);
         GConfig->GetBool (HLSection, TEXT("AutoHop"),                  S.bAutoHop, File);
+        GConfig->GetBool (HLSection, TEXT("MoveEquipOffJump"),         S.bMoveEquipOffJump, File);
         GConfig->GetBool (HLSection, TEXT("MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity, File);
         GConfig->GetBool (HLSection, TEXT("SlopeLandBoost"),           S.bSlopeLandBoost, File);
         GConfig->GetBool (HLSection, TEXT("Surf"),                     S.bSurf, File);
@@ -95,6 +97,9 @@ namespace HLMovementConsole
             TEXT("HL.Enabled"), S.bEnabled, TEXT("Enable Half-Life movement (0/1)."));
         static FAutoConsoleVariableRef CVarAutoHop(
             TEXT("HL.AutoHop"), S.bAutoHop, TEXT("Hold-jump auto-bhop (0/1)."));
+        static FAutoConsoleVariableRef CVarMoveEquip(
+            TEXT("HL.MoveEquipOffJump"), S.bMoveEquipOffJump,
+            TEXT("Move parachute deploy / jetpack thrust off Space onto Left Alt so Space is pure bhop (0/1)."));
 
         static FAutoConsoleVariableRef CVarAccel(
             TEXT("HL.Accelerate"), S.Params.Accelerate, TEXT("Ground acceleration (sv_accelerate)."));

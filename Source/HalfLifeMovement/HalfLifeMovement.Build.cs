@@ -28,6 +28,7 @@ public class HalfLifeMovement : ModuleRules
 			"Foliage",
 			"NetCore",
 			"GameplayTags",
+			"EnhancedInput",
 			"Json", "JsonUtilities"
 		});
 
