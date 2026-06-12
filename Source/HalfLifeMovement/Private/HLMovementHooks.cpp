@@ -55,7 +55,15 @@ static void HLMoveEquipmentBindOffJump(const UFGCharacterMovementComponent* Self
     if (Player == nullptr) { return; }
     const bool bDebug = FHLMovementSettings::Get().bDebug;
     const TArray<AFGEquipment*> Equips = Player->GetActiveEquipments();
-    if (bDebug) { FHLDebugState::Get().EquipCount = Equips.Num(); FHLDebugState::Get().ChuteJetMappings = -1; }
+    if (bDebug)
+    {
+        FHLDebugState& D = FHLDebugState::Get();
+        D.EquipCount = Equips.Num(); D.ChuteJetMappings = -1; D.EquipNames.Reset();
+        for (const AFGEquipment* Eq : Equips)
+        {
+            D.EquipNames += (Eq ? Eq->GetClass()->GetName() : FString(TEXT("null"))) + TEXT(" ");
+        }
+    }
     bool bAnyChanged = false;
     for (AFGEquipment* Eq : Equips)
     {

@@ -37,6 +37,7 @@ struct FHLDebugState
     bool    bSurfing = false;      // TickComponent surf integration active this frame
     // Equipment input-remap diagnostics:
     int32   EquipCount = 0;        // active equipment count
+    FString EquipNames;            // class names of the active equipments
     int32   ChuteJetMappings = -1; // mapping count of the chute/jet IMC (-1 = none found this frame)
     FString ChuteJetKeyName;       // key the chute/jet's first mapping is on
     uint32  RemapsApplied = 0;     // cumulative Space->ToKey remaps applied

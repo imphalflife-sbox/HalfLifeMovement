@@ -101,7 +101,8 @@ namespace HLSpeedometer
             HUD->DrawText(FString::Printf(TEXT("SlideAlongSurface calls=%u nZ=%.2f"),
                 D.SASCalls, D.SASNormalZ), C, DX, DY, Font); DY += HLLineHeight;
             HUD->DrawText(FString::Printf(TEXT("equip=%d chuteJetMaps=%d key=%s remaps=%u"),
-                D.EquipCount, D.ChuteJetMappings, *D.ChuteJetKeyName, D.RemapsApplied), C, DX, DY, Font);
+                D.EquipCount, D.ChuteJetMappings, *D.ChuteJetKeyName, D.RemapsApplied), C, DX, DY, Font); DY += HLLineHeight;
+            HUD->DrawText(FString::Printf(TEXT("equips: %s"), *D.EquipNames), C, DX, DY, Font);
         }
     }
 }
