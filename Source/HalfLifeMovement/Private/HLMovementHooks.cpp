@@ -16,7 +16,9 @@
 #include "Equipment/FGJetPack.h"
 #include "Equipment/FGParachute.h"
 #include "InputMappingContext.h"
-#include "EnhancedInputLibrary.h"
+#include "EnhancedInputSubsystems.h"
+#include "GameFramework/PlayerController.h"
+#include "Engine/LocalPlayer.h"
 
 namespace HLMovementHooks
 {
@@ -51,22 +53,34 @@ static void HLMoveEquipmentBindOffJump(const UFGCharacterMovementComponent* Self
 {
     const AFGCharacterPlayer* Player = Self ? Cast<AFGCharacterPlayer>(Self->GetCharacterOwner()) : nullptr;
     if (Player == nullptr) { return; }
+    bool bAnyChanged = false;
     for (AFGEquipment* Eq : Player->GetActiveEquipments())
     {
         if (Eq == nullptr || !(Eq->IsA<AFGJetPack>() || Eq->IsA<AFGParachute>())) { continue; }
         UInputMappingContext* IMC = Eq->GetMappingContext();
         if (IMC == nullptr) { continue; }
-        bool bChanged = false;
         const int32 Num = IMC->GetMappings().Num();
         for (int32 i = 0; i < Num; ++i)
         {
             if (IMC->GetMappings()[i].Key == EKeys::SpaceBar)
             {
                 IMC->GetMapping(i).Key = ToKey;
-                bChanged = true;
+                bAnyChanged = true;
             }
         }
-        if (bChanged) { UEnhancedInputLibrary::RequestRebuildControlMappingsForContext(IMC); }
+    }
+    if (bAnyChanged)
+    {
+        if (const APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+        {
+            if (ULocalPlayer* LP = PC->GetLocalPlayer())
+            {
+                if (UEnhancedInputLocalPlayerSubsystem* Subsys = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
+                {
+                    Subsys->RequestRebuildControlMappings();
+                }
+            }
+        }
     }
 }
 
