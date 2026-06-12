@@ -99,32 +99,11 @@ namespace HLMovementHooks
                 }
                 else // MOVE_Falling — horizontal only; gravity stays vanilla (handled in PhysFalling)
                 {
+                    // Air accel (airstrafe / ABH). Surf is handled by the SlideAlongSurface hook below,
+                    // which constrains velocity to a ramp's plane each frame of contact: air-accel then
+                    // climbs the ramp while gravity pulls down it (the surf balance).
                     Self->Velocity = HLMovementCore::AirAccelerate(
                         Self->Velocity, WishDir, WishSpeed, S.Params.AirSpeedCap, S.Params.AirAccelerate, Dt);
-
-                    // Surf: if we're moving INTO a steep (non-walkable) surface, clip our velocity
-                    // along it. Strafing into a ramp adds into-ramp velocity that this redirects up
-                    // the ramp face (curve/launch); a direct high-speed hit launches up it too. Probes
-                    // along the velocity direction, so it has no effect during open-air jumps/strafes.
-                    if (S.bSurf && Self->UpdatedComponent && !Self->Velocity.IsNearlyZero())
-                    {
-                        if (const UWorld* World = Self->GetWorld())
-                        {
-                            const FVector Start = Self->UpdatedComponent->GetComponentLocation();
-                            const FVector End = Start + Self->Velocity.GetSafeNormal() * S.SurfProbeDistance;
-                            FCollisionQueryParams Params(FName(TEXT("HLSurfProbe")), false, Self->GetOwner());
-                            FHitResult Hit;
-                            if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
-                            {
-                                const FVector N = Hit.ImpactNormal;
-                                // Steep surface (not a walkable floor) that we're moving into.
-                                if (N.Z < 0.7f && FVector::DotProduct(Self->Velocity, N) < 0.0f)
-                                {
-                                    Self->Velocity = HLMovementCore::ClipVelocity(Self->Velocity, N, 1.0f);
-                                }
-                            }
-                        }
-                    }
                 }
                 Scope.Cancel(); // skip vanilla CalcVelocity for walk/air
             });
@@ -173,6 +152,24 @@ namespace HLMovementHooks
 
                 LastMode = Self->MovementMode;
                 LastVelocity = Self->Velocity;
+            });
+
+        // Surf: when the falling character slides against a surface, UE calls SlideAlongSurface with
+        // the exact contact normal. Clip our velocity onto that plane every frame of contact, so the
+        // ramp constrains the velocity vector. Then air-accel (above) can climb the ramp and gravity
+        // (vanilla PhysFalling) pulls down it -- shallow ramps are easy to climb, steep ones you ride
+        // down, and hitting one fast launches you along/up it. Only on steep (non-walkable) surfaces.
+        SUBSCRIBE_METHOD_VIRTUAL(UFGCharacterMovementComponent::SlideAlongSurface, Sample,
+            [](auto& Scope, UFGCharacterMovementComponent* Self, const FVector& Delta, float Time,
+               const FVector& Normal, FHitResult& Hit, bool bHandleImpact)
+            {
+                FHLMovementSettings& S = FHLMovementSettings::Get();
+                if (S.bEnabled && S.bSurf && HLIsLocalPlayerMovement(Self)
+                    && Self->MovementMode == MOVE_Falling && Normal.Z < 0.7f)
+                {
+                    Self->Velocity = HLMovementCore::ClipVelocity(Self->Velocity, Normal, 1.0f);
+                }
+                // Do not cancel -- let vanilla still slide the position delta along the surface.
             });
 
         // Draw the speedometer each frame after the HUD draws.
