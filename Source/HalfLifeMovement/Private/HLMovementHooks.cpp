@@ -36,16 +36,6 @@ static FVector HLComputeWishDir(const UFGCharacterMovementComponent* CMC)
     return Accel.GetSafeNormal();
 }
 
-// UCharacterMovementComponent::ComputeSlideVector is protected, so we can't take its address from
-// here. Republish it via a derived accessor (never instantiated) purely to name it for the hook.
-struct FHLSlideAccess : public UCharacterMovementComponent
-{
-    using UCharacterMovementComponent::ComputeSlideVector;
-};
-
-// Exact signature for ComputeSlideVector (it's overloaded, so the hook needs an explicit type).
-using FHLComputeSlideSig = FVector(UCharacterMovementComponent::*)(const FVector&, float, const FVector&, const FHitResult&) const;
-
 namespace HLMovementHooks
 {
     void RegisterHooks()
@@ -171,13 +161,17 @@ namespace HLMovementHooks
         // collapses your speed. During surf we override it to the plain plane-projected slide (what Quake
         // PM_FlyMove effectively does), so the character actually climbs the ramp and keeps its speed.
         // ComputeSlideVector is a base UCharacterMovementComponent method (FG does not override it).
-        SUBSCRIBE_METHOD_EXPLICIT_VIRTUAL(FHLComputeSlideSig, FHLSlideAccess::ComputeSlideVector, Sample,
-            [](auto& Scope, const UCharacterMovementComponent* Self, const FVector& Delta, float Time,
+        // Reference the PUBLIC base UMovementComponent::ComputeSlideVector; the FG sample resolves the
+        // vtable to the actual (protected) UCharacterMovementComponent override at runtime.
+        SUBSCRIBE_METHOD_VIRTUAL(UMovementComponent::ComputeSlideVector, Sample,
+            [](auto& Scope, const UMovementComponent* Self, const FVector& Delta, float Time,
                const FVector& Normal, const FHitResult& Hit)
             {
+                const UCharacterMovementComponent* CMC = Cast<UCharacterMovementComponent>(Self);
+                if (CMC == nullptr) { return; }
                 FHLMovementSettings& S = FHLMovementSettings::Get();
-                if (S.bEnabled && S.bSurf && HLIsLocalPlayerMovement(Self)
-                    && Self->MovementMode == MOVE_Falling && Normal.Z < 0.7f)
+                if (S.bEnabled && S.bSurf && HLIsLocalPlayerMovement(CMC)
+                    && CMC->MovementMode == MOVE_Falling && Normal.Z < 0.7f)
                 {
                     // Plain slide, no slope-boost removal (matches UMovementComponent::ComputeSlideVector).
                     Scope.Override(FVector::VectorPlaneProject(Delta, Normal) * Time);
