@@ -53,19 +53,29 @@ static void HLMoveEquipmentBindOffJump(const UFGCharacterMovementComponent* Self
 {
     const AFGCharacterPlayer* Player = Self ? Cast<AFGCharacterPlayer>(Self->GetCharacterOwner()) : nullptr;
     if (Player == nullptr) { return; }
+    const bool bDebug = FHLMovementSettings::Get().bDebug;
+    const TArray<AFGEquipment*> Equips = Player->GetActiveEquipments();
+    if (bDebug) { FHLDebugState::Get().EquipCount = Equips.Num(); FHLDebugState::Get().ChuteJetMappings = -1; }
     bool bAnyChanged = false;
-    for (AFGEquipment* Eq : Player->GetActiveEquipments())
+    for (AFGEquipment* Eq : Equips)
     {
         if (Eq == nullptr || !(Eq->IsA<AFGJetPack>() || Eq->IsA<AFGParachute>())) { continue; }
         UInputMappingContext* IMC = Eq->GetMappingContext();
         if (IMC == nullptr) { continue; }
-        const int32 Num = IMC->GetMappings().Num();
-        for (int32 i = 0; i < Num; ++i)
+        const TArray<FEnhancedActionKeyMapping>& Maps = IMC->GetMappings();
+        if (bDebug)
         {
-            if (IMC->GetMappings()[i].Key == EKeys::SpaceBar)
+            FHLDebugState& D = FHLDebugState::Get();
+            D.ChuteJetMappings = Maps.Num();
+            D.ChuteJetKeyName = Maps.Num() > 0 ? Maps[0].Key.GetFName().ToString() : FString(TEXT("(none)"));
+        }
+        for (int32 i = 0; i < Maps.Num(); ++i)
+        {
+            if (Maps[i].Key == EKeys::SpaceBar)
             {
                 IMC->GetMapping(i).Key = ToKey;
                 bAnyChanged = true;
+                if (bDebug) { FHLDebugState::Get().RemapsApplied++; }
             }
         }
     }
