@@ -1,6 +1,7 @@
 #include "HLMovementHooks.h"
 #include "HLMovementCore.h"
 #include "HLMovementSettings.h"
+#include "HLMovementSpeedometer.h"
 #include "FGCharacterMovementComponent.h"
 #include "Patching/NativeHookManager.h"
 #include "GameFramework/Character.h"
@@ -58,7 +59,11 @@ namespace HLMovementHooks
                 if (Self->MovementMode == MOVE_Walking)
                 {
                     FVector V = Self->Velocity;
-                    V = HLMovementCore::ApplyFriction(V, S.Params.Friction, S.Params.StopSpeed, Dt);
+                    const bool bSkipFriction = S.bAutoHop && Self->mIsPressingJump; // about to auto-hop; don't bleed speed
+                    if (!bSkipFriction)
+                    {
+                        V = HLMovementCore::ApplyFriction(V, S.Params.Friction, S.Params.StopSpeed, Dt);
+                    }
                     V = HLMovementCore::Accelerate(V, WishDir, WishSpeed, S.Params.Accelerate, Dt);
                     Self->Velocity = V;
                 }
@@ -68,6 +73,28 @@ namespace HLMovementHooks
                         Self->Velocity, WishDir, WishSpeed, S.Params.AirSpeedCap, S.Params.AirAccelerate, Dt);
                 }
                 Scope.Cancel(); // skip vanilla CalcVelocity for walk/air
+            });
+
+        // Record horizontal takeoff speed on each successful jump (incl. auto-hops).
+        SUBSCRIBE_METHOD_VIRTUAL_AFTER(UFGCharacterMovementComponent::DoJump, Sample,
+            [](bool Result, UFGCharacterMovementComponent* Self, bool bReplayingMoves)
+            {
+                FHLMovementSettings& S = FHLMovementSettings::Get();
+                if (!S.bEnabled || !Result || !HLIsLocalPlayerMovement(Self)) { return; }
+                const float HSpeed = FVector(Self->Velocity.X, Self->Velocity.Y, 0.0f).Size();
+                FHLSpeedometerData::Get().RecordJump(HSpeed);
+            });
+
+        // Auto-bhop: while holding jump, re-jump the moment we're grounded (frame-perfect chaining).
+        SUBSCRIBE_METHOD_VIRTUAL_AFTER(UFGCharacterMovementComponent::TickComponent, Sample,
+            [](UFGCharacterMovementComponent* Self, float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+            {
+                FHLMovementSettings& S = FHLMovementSettings::Get();
+                if (!S.bEnabled || !S.bAutoHop || !HLIsLocalPlayerMovement(Self)) { return; }
+                if (Self->mIsPressingJump && Self->IsMovingOnGround())
+                {
+                    Self->DoJump(false);
+                }
             });
     }
 }
