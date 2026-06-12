@@ -7,6 +7,9 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/HUD.h"
 #include "FGHUD.h"
+#include "Engine/World.h"
+#include "CollisionQueryParams.h"
+#include "Components/SceneComponent.h"
 
 namespace HLMovementHooks
 {
@@ -98,6 +101,30 @@ namespace HLMovementHooks
                 {
                     Self->Velocity = HLMovementCore::AirAccelerate(
                         Self->Velocity, WishDir, WishSpeed, S.Params.AirSpeedCap, S.Params.AirAccelerate, Dt);
+
+                    // Surf: if we're moving INTO a steep (non-walkable) surface, clip our velocity
+                    // along it. Strafing into a ramp adds into-ramp velocity that this redirects up
+                    // the ramp face (curve/launch); a direct high-speed hit launches up it too. Probes
+                    // along the velocity direction, so it has no effect during open-air jumps/strafes.
+                    if (S.bSurf && Self->UpdatedComponent && !Self->Velocity.IsNearlyZero())
+                    {
+                        if (const UWorld* World = Self->GetWorld())
+                        {
+                            const FVector Start = Self->UpdatedComponent->GetComponentLocation();
+                            const FVector End = Start + Self->Velocity.GetSafeNormal() * S.SurfProbeDistance;
+                            FCollisionQueryParams Params(FName(TEXT("HLSurfProbe")), false, Self->GetOwner());
+                            FHitResult Hit;
+                            if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+                            {
+                                const FVector N = Hit.ImpactNormal;
+                                // Steep surface (not a walkable floor) that we're moving into.
+                                if (N.Z < 0.7f && FVector::DotProduct(Self->Velocity, N) < 0.0f)
+                                {
+                                    Self->Velocity = HLMovementCore::ClipVelocity(Self->Velocity, N, 1.0f);
+                                }
+                            }
+                        }
+                    }
                 }
                 Scope.Cancel(); // skip vanilla CalcVelocity for walk/air
             });

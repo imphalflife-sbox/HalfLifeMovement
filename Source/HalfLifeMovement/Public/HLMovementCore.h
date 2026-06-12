@@ -5,10 +5,10 @@
 struct FHLMoveParams
 {
     float Accelerate    = 10.0f;
-    float AirAccelerate = 10.0f;
+    float AirAccelerate = 100.0f;  // tuned in-game (was 10)
     float Friction      = 4.0f;
     float StopSpeed     = 100.0f;
-    float AirSpeedCap   = 30.0f;
+    float AirSpeedCap   = 60.0f;   // tuned in-game (was 30)
     float MaxSpeed      = 600.0f;
     float SprintMaxSpeed= 1100.0f;
 };

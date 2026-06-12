@@ -14,7 +14,9 @@ struct FHLMovementSettings
     bool  bMaintainHorizontalVelocity = false; // false: velocity follows ramps (launch off crests, no free up-slope speed)
     bool  bSlopeLandBoost = true;              // landing on a slope clips/redirects fall-speed along it (downhill gain, uphill loss)
     float SlopeGravityScale = 0.0f;            // >0: gravity-along-slope while walking (downhill speed gain; modest values)
-    float WalkableFloorAngle = -1.0f;          // <0: leave vanilla; >=0: max walkable slope (deg). Lower => steeper ramps become surfable (slide instead of walk)
+    float WalkableFloorAngle = 45.0f;          // <0: leave vanilla; >=0: max walkable slope (deg). Lower => steeper ramps become surfable (slide instead of walk)
+    bool  bSurf = true;                        // while airborne, clip velocity along a steep surface you move into (strafe into ramp -> curve up it / launch)
+    float SurfProbeDistance = 80.0f;           // how far ahead (cm) to probe for a surf surface along the velocity direction
     FHLMoveParams Params;            // accel/airaccel/friction/cap/maxspeed/sprintmaxspeed
     bool  bSpeedometer = true;
     bool  bSpeedometerJumpSpeeds = true;
