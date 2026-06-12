@@ -67,7 +67,11 @@ static void HLMoveEquipmentBindOffJump(const UFGCharacterMovementComponent* Self
     bool bAnyChanged = false;
     for (AFGEquipment* Eq : Equips)
     {
-        if (Eq == nullptr || !(Eq->IsA<AFGJetPack>() || Eq->IsA<AFGParachute>())) { continue; }
+        if (Eq == nullptr) { continue; }
+        // The shipped jetpack/parachute are Blueprint classes (Equip_JetPack_C, Equip_Parachute_C)
+        // that are NOT children of the C++ AFGJetPack/AFGParachute, so match by class name.
+        const FString EqName = Eq->GetClass()->GetName();
+        if (!EqName.Contains(TEXT("JetPack")) && !EqName.Contains(TEXT("Parachute"))) { continue; }
         UInputMappingContext* IMC = Eq->GetMappingContext();
         if (IMC == nullptr) { continue; }
         const TArray<FEnhancedActionKeyMapping>& Maps = IMC->GetMappings();
