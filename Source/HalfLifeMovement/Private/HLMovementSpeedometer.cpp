@@ -96,8 +96,8 @@ namespace HLSpeedometer
                 D.MoveMode, ModeName, D.CustomMode, D.bOnGround ? 1 : 0), C, DX, DY, Font); DY += HLLineHeight;
             HUD->DrawText(FString::Printf(TEXT("vel H=%.0f Vz=%.0f |v|=%.0f"),
                 FVector(D.Vel.X, D.Vel.Y, 0).Size(), D.Vel.Z, D.Vel.Size()), C, DX, DY, Font); DY += HLLineHeight;
-            HUD->DrawText(FString::Printf(TEXT("ComputeSlideVector calls=%u nZ=%.2f override=%d"),
-                D.CSVCalls, D.CSVNormalZ, D.bCSVWouldOverride ? 1 : 0), C, DX, DY, Font); DY += HLLineHeight;
+            HUD->DrawText(FString::Printf(TEXT("ComputeSlideVector calls=%u nZ=%.2f walkZ=%.2f override=%d"),
+                D.CSVCalls, D.CSVNormalZ, D.CSVWalkableZ, D.bCSVWouldOverride ? 1 : 0), C, DX, DY, Font); DY += HLLineHeight;
             HUD->DrawText(FString::Printf(TEXT("SlideAlongSurface calls=%u nZ=%.2f"),
                 D.SASCalls, D.SASNormalZ), C, DX, DY, Font);
         }

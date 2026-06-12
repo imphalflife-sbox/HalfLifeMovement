@@ -180,11 +180,14 @@ namespace HLMovementHooks
                 if (CMC == nullptr || !HLIsLocalPlayerMovement(CMC)) { return; }
                 FHLMovementSettings& S = FHLMovementSettings::Get();
                 if (!S.bEnabled) { return; }
-                const bool bSteepFalling = (CMC->MovementMode == MOVE_Falling && Normal.Z < 0.7f);
+                // Surf any surface too steep to walk on (Normal.Z below the walkable threshold).
+                const float WalkableZ = CMC->GetWalkableFloorZ();
+                const bool bSteepFalling = (CMC->MovementMode == MOVE_Falling && Normal.Z < WalkableZ);
                 if (S.bDebug)
                 {
                     FHLDebugState& D = FHLDebugState::Get();
-                    D.CSVCalls++; D.CSVNormalZ = Normal.Z; D.bCSVWouldOverride = (S.bSurf && bSteepFalling);
+                    D.CSVCalls++; D.CSVNormalZ = Normal.Z; D.CSVWalkableZ = WalkableZ;
+                    D.bCSVWouldOverride = (S.bSurf && bSteepFalling);
                 }
                 if (S.bSurf && bSteepFalling)
                 {
@@ -209,7 +212,7 @@ namespace HLMovementHooks
                     FHLDebugState& D = FHLDebugState::Get();
                     D.SASCalls++; D.SASNormalZ = Normal.Z;
                 }
-                if (S.bSurf && Self->MovementMode == MOVE_Falling && Normal.Z < 0.7f)
+                if (S.bSurf && Self->MovementMode == MOVE_Falling && Normal.Z < Self->GetWalkableFloorZ())
                 {
                     Self->Velocity = HLMovementCore::ClipVelocity(Self->Velocity, Normal, 1.0f);
                 }

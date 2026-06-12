@@ -68,7 +68,7 @@ namespace HLMovementConsole
             TEXT("1 = while airborne, clip velocity along a steep surface you move into (strafe into ramp -> curve/launch up it)."));
         static FAutoConsoleVariableRef CVarSurfProbe(
             TEXT("HL.SurfProbeDistance"), S.SurfProbeDistance,
-            TEXT("How far ahead (cm) to probe for a surf surface along the velocity direction."));
+            TEXT("(unused) legacy probe distance."));
 
         static FAutoConsoleVariableRef CVarSpeedo(
             TEXT("HL.Speedometer"), S.bSpeedometer, TEXT("Show the speedometer (0/1)."));

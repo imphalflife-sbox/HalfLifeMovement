@@ -30,6 +30,7 @@ struct FHLDebugState
     FVector Vel = FVector::ZeroVector;
     uint32  CSVCalls = 0;          // ComputeSlideVector calls seen (local player)
     float   CSVNormalZ = 0.0f;     // last contact normal Z
+    float   CSVWalkableZ = 0.0f;   // walkable floor Z threshold (surf if normalZ < this)
     bool    bCSVWouldOverride = false;
     uint32  SASCalls = 0;          // SlideAlongSurface calls seen
     float   SASNormalZ = 0.0f;
