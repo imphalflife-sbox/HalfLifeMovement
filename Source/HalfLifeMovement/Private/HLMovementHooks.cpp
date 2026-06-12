@@ -141,6 +141,12 @@ namespace HLMovementHooks
                 }
                 GHLSurfedThisFrame = false;
 
+                // DIAGNOSTIC: force Velocity.Z post-move to test whether UE keeps a velocity we set here.
+                if (S.SurfTestVz != 0.0f && Self->MovementMode == MOVE_Falling)
+                {
+                    Self->Velocity.Z = S.SurfTestVz;
+                }
+
                 // Singleplayer: only the local player reaches here, so static last-frame state is fine.
                 static uint8 LastMode = MOVE_None;
                 static FVector LastVelocity = FVector::ZeroVector;

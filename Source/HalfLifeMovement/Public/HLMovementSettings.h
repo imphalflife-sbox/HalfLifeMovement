@@ -22,6 +22,7 @@ struct FHLMovementSettings
     bool  bSpeedometerJumpSpeeds = true;
     int32 SpeedUnit = 0;             // 0=u/s(cm/s) 1=m/s 2=km/h
     bool  bDebug = false;            // on-screen debug overlay (movement mode, velocity, hook firing)
+    float SurfTestVz = 0.0f;         // DIAGNOSTIC: if non-zero, force Velocity.Z to this each falling frame (post-move) to test whether UE keeps our velocity
 
     static FHLMovementSettings& Get();
 };
