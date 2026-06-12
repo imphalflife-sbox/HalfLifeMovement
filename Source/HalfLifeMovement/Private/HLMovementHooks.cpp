@@ -36,6 +36,12 @@ namespace HLMovementHooks
 {
     void RegisterHooks()
     {
+        // SML native hooks are unstable at EDITOR time and crash funchook ("too short
+        // instructions"), per the SML Native Hooking docs. Install them ONLY in non-editor
+        // (packaged/game) builds. Consequence: this mod is tested by Alpakit-ing into the
+        // game and playing there, NOT in PIE/editor (the hooks are inert in the editor).
+        if (!WITH_EDITOR)
+        {
         UFGCharacterMovementComponent* Sample = GetMutableDefault<UFGCharacterMovementComponent>();
 
         SUBSCRIBE_METHOD_VIRTUAL(UFGCharacterMovementComponent::CalcVelocity, Sample,
@@ -96,5 +102,6 @@ namespace HLMovementHooks
         // Draw the speedometer each frame after the HUD draws.
         SUBSCRIBE_METHOD_VIRTUAL_AFTER(AHUD::DrawHUD, GetMutableDefault<AFGHUD>(),
             [](AHUD* HUD) { HLSpeedometer::DrawTo(HUD); });
+        }
     }
 }
