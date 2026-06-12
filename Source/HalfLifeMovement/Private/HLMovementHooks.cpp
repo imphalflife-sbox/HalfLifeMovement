@@ -10,6 +10,7 @@
 #include "Engine/World.h"
 #include "CollisionQueryParams.h"
 #include "Components/SceneComponent.h"
+#include "Components/CapsuleComponent.h"
 
 namespace HLMovementHooks
 {
@@ -36,12 +37,11 @@ static FVector HLComputeWishDir(const UFGCharacterMovementComponent* CMC)
     return Accel.GetSafeNormal();
 }
 
-// Surf clip-and-carry (mirrors Quake PM_FlyMove): the SlideAlongSurface clip computes the along-ramp
-// velocity -- including the UPWARD component redirected from horizontal speed -- but UE's PhysFalling
-// re-derives velocity right after and drops that upward Z. We stash the clipped velocity here and
-// re-assert it in the post-move TickComponent hook. Singleplayer: only the local player writes these.
-static FVector GHLSurfVel = FVector::ZeroVector;
-static bool    GHLSurfedThisFrame = false;
+// Surf: the TickComponent (post-move) hook maintains the player's velocity while in contact with a
+// non-walkable ramp -- gravity + air-accel + clip-to-plane, Quake PM_FlyMove style -- and asserts it
+// where it survives UE's velocity re-derivation (verified by HL.SurfTestVz). GHLWasSurfing is shared
+// so CalcVelocity can skip its own air-accel during surf (the integration owns velocity then).
+static bool GHLWasSurfing = false;
 
 namespace HLMovementHooks
 {
@@ -107,11 +107,13 @@ namespace HLMovementHooks
                 }
                 else // MOVE_Falling — horizontal only; gravity stays vanilla (handled in PhysFalling)
                 {
-                    // Air accel (airstrafe / ABH). Surf is handled by the SlideAlongSurface hook below,
-                    // which constrains velocity to a ramp's plane each frame of contact: air-accel then
-                    // climbs the ramp while gravity pulls down it (the surf balance).
-                    Self->Velocity = HLMovementCore::AirAccelerate(
-                        Self->Velocity, WishDir, WishSpeed, S.Params.AirSpeedCap, S.Params.AirAccelerate, Dt);
+                    // Air accel (airstrafe / ABH). During surf, the TickComponent integration owns the
+                    // velocity (gravity+airaccel+clip), so skip air-accel here to avoid double-applying it.
+                    if (!GHLWasSurfing)
+                    {
+                        Self->Velocity = HLMovementCore::AirAccelerate(
+                            Self->Velocity, WishDir, WishSpeed, S.Params.AirSpeedCap, S.Params.AirAccelerate, Dt);
+                    }
                 }
                 Scope.Cancel(); // skip vanilla CalcVelocity for walk/air
             });
@@ -133,13 +135,48 @@ namespace HLMovementHooks
                 FHLMovementSettings& S = FHLMovementSettings::Get();
                 if (!S.bEnabled || !HLIsLocalPlayerMovement(Self)) { return; }
 
-                // Surf clip-and-carry: re-assert the along-ramp velocity (incl. the upward component
-                // converted from horizontal speed) that UE's PhysFalling re-derivation just dropped.
-                if (S.bSurf && GHLSurfedThisFrame)
+                // Surf integration (PM_FlyMove-style, run where the velocity we set survives UE's
+                // re-derivation): while airborne and in contact with a non-walkable ramp below us, we
+                // own the velocity -- gravity + air-accel + clip-to-ramp -- and assert it here. This is
+                // what converts horizontal speed into up-the-ramp speed and lets you climb/launch.
                 {
-                    Self->Velocity = GHLSurfVel;
+                    static FVector SurfVel = FVector::ZeroVector;
+                    bool bSurfingNow = false;
+                    if (S.bSurf && Self->MovementMode == MOVE_Falling && Self->UpdatedComponent)
+                    {
+                        if (const UWorld* World = Self->GetWorld())
+                        {
+                            const FVector Center = Self->UpdatedComponent->GetComponentLocation();
+                            float HalfHeight = 88.0f;
+                            if (const UCapsuleComponent* Cap = Cast<UCapsuleComponent>(Self->UpdatedComponent))
+                            {
+                                HalfHeight = Cap->GetScaledCapsuleHalfHeight();
+                            }
+                            const FVector End = Center - FVector(0.0f, 0.0f, HalfHeight + 30.0f);
+                            FCollisionQueryParams Params(FName(TEXT("HLSurfFloor")), false, Self->GetOwner());
+                            FHitResult Hit;
+                            if (World->LineTraceSingleByChannel(Hit, Center, End, ECC_Visibility, Params))
+                            {
+                                const FVector N = Hit.ImpactNormal;
+                                if (N.Z > 0.1f && N.Z < Self->GetWalkableFloorZ()) // a ramp: not wall/ceiling, not walkable
+                                {
+                                    bSurfingNow = true;
+                                    if (!GHLWasSurfing) { SurfVel = Self->Velocity; }     // seed on surf entry
+                                    SurfVel.Z += Self->GetGravityZ() * DeltaTime;          // gravity (GetGravityZ < 0)
+                                    const FVector WishDir = HLComputeWishDir(Self);
+                                    const float WishSpeed = Self->GetIsSprinting() ? S.Params.SprintMaxSpeed : S.Params.MaxSpeed;
+                                    SurfVel = HLMovementCore::AirAccelerate(SurfVel, WishDir, WishSpeed, S.Params.AirSpeedCap, S.Params.AirAccelerate, DeltaTime);
+                                    SurfVel = HLMovementCore::ClipVelocity(SurfVel, N, 1.0f);
+                                    Self->Velocity = SurfVel;
+                                }
+                            }
+                        }
+                    }
+                    if (GHLWasSurfing && !bSurfingNow) { Self->Velocity = SurfVel; } // launch off the ramp carrying the surf velocity
+                    GHLWasSurfing = bSurfingNow;
+
+                    if (S.bDebug) { FHLDebugState::Get().bSurfing = bSurfingNow; }
                 }
-                GHLSurfedThisFrame = false;
 
                 // DIAGNOSTIC: force Velocity.Z post-move to test whether UE keeps a velocity we set here.
                 if (S.SurfTestVz != 0.0f && Self->MovementMode == MOVE_Falling)
@@ -235,9 +272,9 @@ namespace HLMovementHooks
                 }
                 if (S.bSurf && Self->MovementMode == MOVE_Falling && Normal.Z < Self->GetWalkableFloorZ())
                 {
+                    // Keep the in-move velocity on the ramp plane; the TickComponent integration is the
+                    // authoritative carried velocity (this just keeps the position slide consistent).
                     Self->Velocity = HLMovementCore::ClipVelocity(Self->Velocity, Normal, 1.0f);
-                    GHLSurfVel = Self->Velocity;     // carry past PhysFalling's velocity re-derivation
-                    GHLSurfedThisFrame = true;
                 }
                 // Do not cancel -- let vanilla still slide the position delta along the surface.
             });

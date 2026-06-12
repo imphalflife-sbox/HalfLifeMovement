@@ -34,6 +34,7 @@ struct FHLDebugState
     bool    bCSVWouldOverride = false;
     uint32  SASCalls = 0;          // SlideAlongSurface calls seen
     float   SASNormalZ = 0.0f;
+    bool    bSurfing = false;      // TickComponent surf integration active this frame
     static FHLDebugState& Get();
 };
 

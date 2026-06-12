@@ -92,8 +92,8 @@ namespace HLSpeedometer
             const TCHAR* ModeName =
                 D.MoveMode == 1 ? TEXT("Walk") : D.MoveMode == 3 ? TEXT("Fall") :
                 D.MoveMode == 6 ? TEXT("Custom") : TEXT("?");
-            HUD->DrawText(FString::Printf(TEXT("mode=%d(%s) custom=%d ground=%d"),
-                D.MoveMode, ModeName, D.CustomMode, D.bOnGround ? 1 : 0), C, DX, DY, Font); DY += HLLineHeight;
+            HUD->DrawText(FString::Printf(TEXT("mode=%d(%s) custom=%d ground=%d surfing=%d"),
+                D.MoveMode, ModeName, D.CustomMode, D.bOnGround ? 1 : 0, D.bSurfing ? 1 : 0), C, DX, DY, Font); DY += HLLineHeight;
             HUD->DrawText(FString::Printf(TEXT("vel H=%.0f Vz=%.0f |v|=%.0f"),
                 FVector(D.Vel.X, D.Vel.Y, 0).Size(), D.Vel.Z, D.Vel.Size()), C, DX, DY, Font); DY += HLLineHeight;
             HUD->DrawText(FString::Printf(TEXT("ComputeSlideVector calls=%u nZ=%.2f walkZ=%.2f override=%d"),
