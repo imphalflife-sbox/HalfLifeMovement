@@ -6,6 +6,7 @@
 
 void FHalfLifeMovementModule::StartupModule()
 {
+	HLMovementConsole::LoadSettings();   // restore persisted settings (before cvars bind to the fields)
 	HLMovementConsole::RegisterCVars();  // editor-safe; enables live HL.* tuning in-game
 	HLMovementHooks::RegisterHooks();    // native hooks; only install outside the editor
 }

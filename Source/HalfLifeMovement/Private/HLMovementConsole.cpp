@@ -2,9 +2,71 @@
 #include "HLMovementSettings.h"
 #include "HAL/IConsoleManager.h"
 #include "Engine/Engine.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/Paths.h"
 
 namespace HLMovementConsole
 {
+    static const TCHAR* HLSection = TEXT("HalfLifeMovement");
+    static FString HLConfigFile() { return FPaths::ProjectSavedDir() / TEXT("HalfLifeMovement.ini"); }
+
+    void SaveSettings()
+    {
+        const FHLMovementSettings& S = FHLMovementSettings::Get();
+        const FString File = HLConfigFile();
+        GConfig->SetBool (HLSection, TEXT("Enabled"),                  S.bEnabled, File);
+        GConfig->SetBool (HLSection, TEXT("AutoHop"),                  S.bAutoHop, File);
+        GConfig->SetBool (HLSection, TEXT("MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity, File);
+        GConfig->SetBool (HLSection, TEXT("SlopeLandBoost"),           S.bSlopeLandBoost, File);
+        GConfig->SetBool (HLSection, TEXT("Surf"),                     S.bSurf, File);
+        GConfig->SetBool (HLSection, TEXT("CarryParachute"),           S.bCarryParachute, File);
+        GConfig->SetBool (HLSection, TEXT("CarryJetpack"),             S.bCarryJetpack, File);
+        GConfig->SetFloat(HLSection, TEXT("Accelerate"),              S.Params.Accelerate, File);
+        GConfig->SetFloat(HLSection, TEXT("AirAccelerate"),           S.Params.AirAccelerate, File);
+        GConfig->SetFloat(HLSection, TEXT("Friction"),               S.Params.Friction, File);
+        GConfig->SetFloat(HLSection, TEXT("StopSpeed"),              S.Params.StopSpeed, File);
+        GConfig->SetFloat(HLSection, TEXT("AirSpeedCap"),            S.Params.AirSpeedCap, File);
+        GConfig->SetFloat(HLSection, TEXT("MaxSpeed"),               S.Params.MaxSpeed, File);
+        GConfig->SetFloat(HLSection, TEXT("SprintMaxSpeed"),         S.Params.SprintMaxSpeed, File);
+        GConfig->SetFloat(HLSection, TEXT("ParachuteDragScale"),     S.ParachuteDragScale, File);
+        GConfig->SetFloat(HLSection, TEXT("SlopeGravityScale"),      S.SlopeGravityScale, File);
+        GConfig->SetFloat(HLSection, TEXT("WalkableFloorAngle"),     S.WalkableFloorAngle, File);
+        GConfig->SetBool (HLSection, TEXT("Speedometer"),            S.bSpeedometer, File);
+        GConfig->SetBool (HLSection, TEXT("SpeedometerJumpSpeeds"),  S.bSpeedometerJumpSpeeds, File);
+        GConfig->SetInt  (HLSection, TEXT("SpeedUnit"),              S.SpeedUnit, File);
+        GConfig->Flush(false, File);
+
+        UE_LOG(LogTemp, Display, TEXT("[HL] Settings saved to %s"), *File);
+        if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, TEXT("[HL] Settings saved.")); }
+    }
+
+    void LoadSettings()
+    {
+        FHLMovementSettings& S = FHLMovementSettings::Get();
+        const FString File = HLConfigFile();
+        // Each Get* leaves the value untouched (keeps the baked default) if the key isn't present.
+        GConfig->GetBool (HLSection, TEXT("Enabled"),                  S.bEnabled, File);
+        GConfig->GetBool (HLSection, TEXT("AutoHop"),                  S.bAutoHop, File);
+        GConfig->GetBool (HLSection, TEXT("MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity, File);
+        GConfig->GetBool (HLSection, TEXT("SlopeLandBoost"),           S.bSlopeLandBoost, File);
+        GConfig->GetBool (HLSection, TEXT("Surf"),                     S.bSurf, File);
+        GConfig->GetBool (HLSection, TEXT("CarryParachute"),           S.bCarryParachute, File);
+        GConfig->GetBool (HLSection, TEXT("CarryJetpack"),             S.bCarryJetpack, File);
+        GConfig->GetFloat(HLSection, TEXT("Accelerate"),              S.Params.Accelerate, File);
+        GConfig->GetFloat(HLSection, TEXT("AirAccelerate"),           S.Params.AirAccelerate, File);
+        GConfig->GetFloat(HLSection, TEXT("Friction"),               S.Params.Friction, File);
+        GConfig->GetFloat(HLSection, TEXT("StopSpeed"),              S.Params.StopSpeed, File);
+        GConfig->GetFloat(HLSection, TEXT("AirSpeedCap"),            S.Params.AirSpeedCap, File);
+        GConfig->GetFloat(HLSection, TEXT("MaxSpeed"),               S.Params.MaxSpeed, File);
+        GConfig->GetFloat(HLSection, TEXT("SprintMaxSpeed"),         S.Params.SprintMaxSpeed, File);
+        GConfig->GetFloat(HLSection, TEXT("ParachuteDragScale"),     S.ParachuteDragScale, File);
+        GConfig->GetFloat(HLSection, TEXT("SlopeGravityScale"),      S.SlopeGravityScale, File);
+        GConfig->GetFloat(HLSection, TEXT("WalkableFloorAngle"),     S.WalkableFloorAngle, File);
+        GConfig->GetBool (HLSection, TEXT("Speedometer"),            S.bSpeedometer, File);
+        GConfig->GetBool (HLSection, TEXT("SpeedometerJumpSpeeds"),  S.bSpeedometerJumpSpeeds, File);
+        GConfig->GetInt  (HLSection, TEXT("SpeedUnit"),              S.SpeedUnit, File);
+    }
+
     static void DumpSettings()
     {
         const FHLMovementSettings& S = FHLMovementSettings::Get();
@@ -80,5 +142,8 @@ namespace HLMovementConsole
         static FAutoConsoleCommand CmdDump(
             TEXT("HL.Dump"), TEXT("Print the current Half-Life movement settings."),
             FConsoleCommandDelegate::CreateStatic(&DumpSettings));
+        static FAutoConsoleCommand CmdSave(
+            TEXT("HL.Save"), TEXT("Persist the current Half-Life movement settings across restarts."),
+            FConsoleCommandDelegate::CreateStatic(&SaveSettings));
     }
 }
