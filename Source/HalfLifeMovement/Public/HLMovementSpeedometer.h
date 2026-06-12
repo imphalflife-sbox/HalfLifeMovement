@@ -21,10 +21,25 @@ private:
     static constexpr int32 MaxRecords = 8;
 };
 
+/** Live debug snapshot written by the movement hooks, drawn when HL.Debug is on. Game-thread only. */
+struct FHLDebugState
+{
+    int32   MoveMode = 0;          // EMovementMode: 1=Walking 3=Falling 6=Custom
+    int32   CustomMode = 0;
+    bool    bOnGround = false;
+    FVector Vel = FVector::ZeroVector;
+    uint32  CSVCalls = 0;          // ComputeSlideVector calls seen (local player)
+    float   CSVNormalZ = 0.0f;     // last contact normal Z
+    bool    bCSVWouldOverride = false;
+    uint32  SASCalls = 0;          // SlideAlongSurface calls seen
+    float   SASNormalZ = 0.0f;
+    static FHLDebugState& Get();
+};
+
 class AHUD;
 
 namespace HLSpeedometer
 {
-    /** Draws the speedometer onto the HUD canvas. Call from a HUD DrawHUD hook. */
+    /** Draws the speedometer (and debug overlay) onto the HUD canvas. Call from a HUD DrawHUD hook. */
     void DrawTo(AHUD* HUD);
 }

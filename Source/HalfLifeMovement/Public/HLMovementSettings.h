@@ -21,6 +21,7 @@ struct FHLMovementSettings
     bool  bSpeedometer = true;
     bool  bSpeedometerJumpSpeeds = true;
     int32 SpeedUnit = 0;             // 0=u/s(cm/s) 1=m/s 2=km/h
+    bool  bDebug = false;            // on-screen debug overlay (movement mode, velocity, hook firing)
 
     static FHLMovementSettings& Get();
 };

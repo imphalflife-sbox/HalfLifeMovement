@@ -12,6 +12,12 @@ FHLSpeedometerData& FHLSpeedometerData::Get()
     return Instance;
 }
 
+FHLDebugState& FHLDebugState::Get()
+{
+    static FHLDebugState Instance;
+    return Instance;
+}
+
 void FHLSpeedometerData::RecordJump(float HorizontalSpeed)
 {
     FHLJumpRecord R;
@@ -75,6 +81,25 @@ namespace HLSpeedometer
                     HLConvertUnit(R.Speed, S.SpeedUnit), HLConvertUnit(R.Delta, S.SpeedUnit)),
                     Color, X, Y, Font);
             }
+        }
+
+        if (S.bDebug)
+        {
+            const FHLDebugState& D = FHLDebugState::Get();
+            const FLinearColor C(1.0f, 1.0f, 0.4f, 1.0f); // yellow
+            float DY = SizeY * 0.40f;
+            const float DX = 40.0f;
+            const TCHAR* ModeName =
+                D.MoveMode == 1 ? TEXT("Walk") : D.MoveMode == 3 ? TEXT("Fall") :
+                D.MoveMode == 6 ? TEXT("Custom") : TEXT("?");
+            HUD->DrawText(FString::Printf(TEXT("mode=%d(%s) custom=%d ground=%d"),
+                D.MoveMode, ModeName, D.CustomMode, D.bOnGround ? 1 : 0), C, DX, DY, Font); DY += HLLineHeight;
+            HUD->DrawText(FString::Printf(TEXT("vel H=%.0f Vz=%.0f |v|=%.0f"),
+                FVector(D.Vel.X, D.Vel.Y, 0).Size(), D.Vel.Z, D.Vel.Size()), C, DX, DY, Font); DY += HLLineHeight;
+            HUD->DrawText(FString::Printf(TEXT("ComputeSlideVector calls=%u nZ=%.2f override=%d"),
+                D.CSVCalls, D.CSVNormalZ, D.bCSVWouldOverride ? 1 : 0), C, DX, DY, Font); DY += HLLineHeight;
+            HUD->DrawText(FString::Printf(TEXT("SlideAlongSurface calls=%u nZ=%.2f"),
+                D.SASCalls, D.SASNormalZ), C, DX, DY, Font);
         }
     }
 }

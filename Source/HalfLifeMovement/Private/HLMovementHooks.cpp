@@ -153,6 +153,15 @@ namespace HLMovementHooks
 
                 LastMode = Self->MovementMode;
                 LastVelocity = Self->Velocity;
+
+                if (S.bDebug)
+                {
+                    FHLDebugState& D = FHLDebugState::Get();
+                    D.MoveMode = Self->MovementMode;
+                    D.CustomMode = Self->CustomMovementMode;
+                    D.bOnGround = Self->IsMovingOnGround();
+                    D.Vel = Self->Velocity;
+                }
             });
 
         // Surf fix (the important one): UE's ComputeSlideVector runs HandleSlopeBoosting while falling,
@@ -168,10 +177,16 @@ namespace HLMovementHooks
                const FVector& Normal, const FHitResult& Hit)
             {
                 const UCharacterMovementComponent* CMC = Cast<UCharacterMovementComponent>(Self);
-                if (CMC == nullptr) { return; }
+                if (CMC == nullptr || !HLIsLocalPlayerMovement(CMC)) { return; }
                 FHLMovementSettings& S = FHLMovementSettings::Get();
-                if (S.bEnabled && S.bSurf && HLIsLocalPlayerMovement(CMC)
-                    && CMC->MovementMode == MOVE_Falling && Normal.Z < 0.7f)
+                if (!S.bEnabled) { return; }
+                const bool bSteepFalling = (CMC->MovementMode == MOVE_Falling && Normal.Z < 0.7f);
+                if (S.bDebug)
+                {
+                    FHLDebugState& D = FHLDebugState::Get();
+                    D.CSVCalls++; D.CSVNormalZ = Normal.Z; D.bCSVWouldOverride = (S.bSurf && bSteepFalling);
+                }
+                if (S.bSurf && bSteepFalling)
                 {
                     // Plain slide, no slope-boost removal (matches UMovementComponent::ComputeSlideVector).
                     Scope.Override(FVector::VectorPlaneProject(Delta, Normal) * Time);
@@ -188,8 +203,13 @@ namespace HLMovementHooks
                const FVector& Normal, FHitResult& Hit, bool bHandleImpact)
             {
                 FHLMovementSettings& S = FHLMovementSettings::Get();
-                if (S.bEnabled && S.bSurf && HLIsLocalPlayerMovement(Self)
-                    && Self->MovementMode == MOVE_Falling && Normal.Z < 0.7f)
+                if (!S.bEnabled || !HLIsLocalPlayerMovement(Self)) { return; }
+                if (S.bDebug)
+                {
+                    FHLDebugState& D = FHLDebugState::Get();
+                    D.SASCalls++; D.SASNormalZ = Normal.Z;
+                }
+                if (S.bSurf && Self->MovementMode == MOVE_Falling && Normal.Z < 0.7f)
                 {
                     Self->Velocity = HLMovementCore::ClipVelocity(Self->Velocity, Normal, 1.0f);
                 }

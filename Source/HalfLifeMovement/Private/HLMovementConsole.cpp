@@ -76,6 +76,9 @@ namespace HLMovementConsole
             TEXT("HL.SpeedometerJumps"), S.bSpeedometerJumpSpeeds, TEXT("Show per-jump speeds on the speedometer (0/1)."));
         static FAutoConsoleVariableRef CVarSpeedUnit(
             TEXT("HL.SpeedUnit"), S.SpeedUnit, TEXT("Speedometer unit: 0=u/s(cm/s), 1=m/s, 2=km/h."));
+        static FAutoConsoleVariableRef CVarDebug(
+            TEXT("HL.Debug"), S.bDebug,
+            TEXT("On-screen debug overlay: movement mode, velocity (H/Vz), and hook firing counts."));
 
         static FAutoConsoleCommand CmdDump(
             TEXT("HL.Dump"), TEXT("Print the current Half-Life movement settings."),
