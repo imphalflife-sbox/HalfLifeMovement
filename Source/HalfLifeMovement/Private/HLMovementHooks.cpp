@@ -36,6 +36,13 @@ static FVector HLComputeWishDir(const UFGCharacterMovementComponent* CMC)
     return Accel.GetSafeNormal();
 }
 
+// UCharacterMovementComponent::ComputeSlideVector is protected, so we can't take its address from
+// here. Republish it via a derived accessor (never instantiated) purely to name it for the hook.
+struct FHLSlideAccess : public UCharacterMovementComponent
+{
+    using UCharacterMovementComponent::ComputeSlideVector;
+};
+
 namespace HLMovementHooks
 {
     void RegisterHooks()
@@ -161,7 +168,7 @@ namespace HLMovementHooks
         // collapses your speed. During surf we override it to the plain plane-projected slide (what Quake
         // PM_FlyMove effectively does), so the character actually climbs the ramp and keeps its speed.
         // ComputeSlideVector is a base UCharacterMovementComponent method (FG does not override it).
-        SUBSCRIBE_METHOD_VIRTUAL(UCharacterMovementComponent::ComputeSlideVector, Sample,
+        SUBSCRIBE_METHOD_VIRTUAL(FHLSlideAccess::ComputeSlideVector, Sample,
             [](auto& Scope, const UCharacterMovementComponent* Self, const FVector& Delta, float Time,
                const FVector& Normal, const FHitResult& Hit)
             {
