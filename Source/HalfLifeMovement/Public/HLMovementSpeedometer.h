@@ -20,3 +20,11 @@ private:
     float LastSpeed = 0.0f;
     static constexpr int32 MaxRecords = 8;
 };
+
+class AHUD;
+
+namespace HLSpeedometer
+{
+    /** Draws the speedometer onto the HUD canvas. Call from a HUD DrawHUD hook. */
+    void DrawTo(AHUD* HUD);
+}

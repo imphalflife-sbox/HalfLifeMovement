@@ -5,6 +5,8 @@
 #include "FGCharacterMovementComponent.h"
 #include "Patching/NativeHookManager.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/HUD.h"
+#include "FGHUD.h"
 
 namespace HLMovementHooks
 {
@@ -96,5 +98,9 @@ namespace HLMovementHooks
                     Self->DoJump(false);
                 }
             });
+
+        // Draw the speedometer each frame after the HUD draws.
+        SUBSCRIBE_METHOD_VIRTUAL_AFTER(AHUD::DrawHUD, GetMutableDefault<AFGHUD>(),
+            [](AHUD* HUD) { HLSpeedometer::DrawTo(HUD); });
     }
 }
