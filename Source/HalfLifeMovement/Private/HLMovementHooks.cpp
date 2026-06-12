@@ -20,8 +20,9 @@ namespace HLMovementHooks
     // address it via a hookable (larger) function, not GetMaxSpeed.
 
     // True only for the local player's own character. Prevents our movement model from
-    // affecting NPCs/creatures or remote pawns that share this component class.
-    static bool HLIsLocalPlayerMovement(const UFGCharacterMovementComponent* Self)
+    // affecting NPCs/creatures or remote pawns that share this component class. Takes the base
+    // type so hooks on base-class methods (e.g. ComputeSlideVector) can reuse it.
+    static bool HLIsLocalPlayerMovement(const UCharacterMovementComponent* Self)
     {
         const ACharacter* Owner = Self ? Self->GetCharacterOwner() : nullptr;
         return Owner != nullptr && Owner->IsPlayerControlled() && Owner->IsLocallyControlled();
@@ -152,6 +153,25 @@ namespace HLMovementHooks
 
                 LastMode = Self->MovementMode;
                 LastVelocity = Self->Velocity;
+            });
+
+        // Surf fix (the important one): UE's ComputeSlideVector runs HandleSlopeBoosting while falling,
+        // which STRIPS the upward component out of a slide into a ramp (anti-wall-climb). That stops you
+        // riding up a surf ramp, and PhysFalling then re-derives velocity from the throttled move and
+        // collapses your speed. During surf we override it to the plain plane-projected slide (what Quake
+        // PM_FlyMove effectively does), so the character actually climbs the ramp and keeps its speed.
+        // ComputeSlideVector is a base UCharacterMovementComponent method (FG does not override it).
+        SUBSCRIBE_METHOD_VIRTUAL(UCharacterMovementComponent::ComputeSlideVector, Sample,
+            [](auto& Scope, const UCharacterMovementComponent* Self, const FVector& Delta, float Time,
+               const FVector& Normal, const FHitResult& Hit)
+            {
+                FHLMovementSettings& S = FHLMovementSettings::Get();
+                if (S.bEnabled && S.bSurf && HLIsLocalPlayerMovement(Self)
+                    && Self->MovementMode == MOVE_Falling && Normal.Z < 0.7f)
+                {
+                    // Plain slide, no slope-boost removal (matches UMovementComponent::ComputeSlideVector).
+                    Scope.Override(FVector::VectorPlaneProject(Delta, Normal) * Time);
+                }
             });
 
         // Surf: when the falling character slides against a surface, UE calls SlideAlongSurface with
