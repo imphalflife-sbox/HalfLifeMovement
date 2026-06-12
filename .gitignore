@@ -1,0 +1,26 @@
+# Unreal Engine / SML mod build artifacts
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# Alpakit / packaged output
+Output/
+Packaged/
+
+# OS / editor cruft
+Thumbs.db
+.DS_Store
+*.swp
+*~
