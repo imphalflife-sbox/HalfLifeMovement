@@ -112,16 +112,40 @@ namespace HLMovementHooks
                 FHLSpeedometerData::Get().RecordJump(HSpeed);
             });
 
-        // Auto-bhop: while holding jump, re-jump the moment we're grounded (frame-perfect chaining).
+        // Per-frame: slope-landing speed redirect + hold-to-auto-bhop.
         SUBSCRIBE_METHOD_VIRTUAL_AFTER(UFGCharacterMovementComponent::TickComponent, Sample,
             [](UFGCharacterMovementComponent* Self, float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
             {
                 FHLMovementSettings& S = FHLMovementSettings::Get();
-                if (!S.bEnabled || !S.bAutoHop || !HLIsLocalPlayerMovement(Self)) { return; }
-                if (Self->mIsPressingJump && Self->IsMovingOnGround())
+                if (!S.bEnabled || !HLIsLocalPlayerMovement(Self)) { return; }
+
+                // Singleplayer: only the local player reaches here, so static last-frame state is fine.
+                static uint8 LastMode = MOVE_None;
+                static FVector LastVelocity = FVector::ZeroVector;
+
+                // Landing on a slope: redirect the PRE-landing (airborne) velocity along the floor
+                // plane instead of letting UE absorb the fall. ClipVelocity converts fall-speed into
+                // along-slope speed -> downhill landing gains forward speed, uphill loses it (GoldSrc
+                // ramp-bhop). N.Z < ~1 restricts this to actual slopes (no-op on flat ground).
+                if (S.bSlopeLandBoost && LastMode == MOVE_Falling && Self->MovementMode == MOVE_Walking
+                    && Self->CurrentFloor.bBlockingHit)
+                {
+                    const FVector N = Self->CurrentFloor.HitResult.ImpactNormal;
+                    if (!N.IsNearlyZero() && N.Z < 0.999f)
+                    {
+                        Self->Velocity = HLMovementCore::ClipVelocity(LastVelocity, N, 1.0f);
+                    }
+                }
+
+                // Auto-bhop: while holding jump, re-jump the moment we're grounded (launches with the
+                // slope-boosted horizontal speed from above).
+                if (S.bAutoHop && Self->mIsPressingJump && Self->IsMovingOnGround())
                 {
                     Self->DoJump(false);
                 }
+
+                LastMode = Self->MovementMode;
+                LastVelocity = Self->Velocity;
             });
 
         // Draw the speedometer each frame after the HUD draws.

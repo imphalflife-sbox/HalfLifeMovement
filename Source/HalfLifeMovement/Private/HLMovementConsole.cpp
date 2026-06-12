@@ -54,6 +54,9 @@ namespace HLMovementConsole
         static FAutoConsoleVariableRef CVarMaintainHorizVel(
             TEXT("HL.MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity,
             TEXT("0 = velocity follows ramps (launch off crests, no free up-slope speed); 1 = vanilla flat."));
+        static FAutoConsoleVariableRef CVarSlopeLandBoost(
+            TEXT("HL.SlopeLandBoost"), S.bSlopeLandBoost,
+            TEXT("1 = landing on a slope redirects fall-speed along it (downhill bhop gains speed, uphill loses)."));
         static FAutoConsoleVariableRef CVarSlopeGravity(
             TEXT("HL.SlopeGravity"), S.SlopeGravityScale,
             TEXT("Gravity-along-slope while walking (downhill speed gain). 0 = off; ~1 = full. Causes slow slide on steep ground."));
