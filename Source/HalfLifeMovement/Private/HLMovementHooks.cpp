@@ -10,9 +10,11 @@
 
 namespace HLMovementHooks
 {
-    // Reported as the air max-speed so UE's falling velocity clamp can't throttle the
-    // speed our AirAccelerate builds. Intentionally enormous (not a real speed limit).
-    static constexpr float HL_UncappedAirSpeed = 1000000.0f;
+    // NOTE: We intentionally do NOT hook GetMaxSpeed. It is a tiny function that funchook
+    // cannot patch ("Too short instructions" -> crash). It is also unnecessary: UE's lateral
+    // air-speed clamp lives inside CalcVelocity, which we fully replace and Cancel() below,
+    // so our AirAccelerate output is never clamped. If a residual air clamp ever appears,
+    // address it via a hookable (larger) function, not GetMaxSpeed.
 
     // True only for the local player's own character. Prevents our movement model from
     // affecting NPCs/creatures or remote pawns that share this component class.
@@ -35,14 +37,6 @@ namespace HLMovementHooks
     void RegisterHooks()
     {
         UFGCharacterMovementComponent* Sample = GetMutableDefault<UFGCharacterMovementComponent>();
-
-        SUBSCRIBE_METHOD_VIRTUAL(UFGCharacterMovementComponent::GetMaxSpeed, Sample,
-            [](auto& Scope, const UFGCharacterMovementComponent* Self)
-            {
-                FHLMovementSettings& S = FHLMovementSettings::Get();
-                if (!S.bEnabled || !HLIsLocalPlayerMovement(Self)) { return; }
-                if (Self->MovementMode == MOVE_Falling) { Scope.Override(HL_UncappedAirSpeed); }
-            });
 
         SUBSCRIBE_METHOD_VIRTUAL(UFGCharacterMovementComponent::CalcVelocity, Sample,
             [](auto& Scope, UFGCharacterMovementComponent* Self, float Dt, float Friction, bool bFluid, float BrakingDecel)
