@@ -5,9 +5,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHLMoveFrictionTest, "HalfLifeMovement.Core.Fri
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FHLMoveFrictionTest::RunTest(const FString&)
 {
-    const FVector R = HLMovementCore::ApplyFriction(FVector(400, 0, 0), 4.0f, 100.0f, 0.1f);
+    // Non-zero Z proves friction leaves vertical velocity untouched (the core's central invariant).
+    const FVector R = HLMovementCore::ApplyFriction(FVector(400, 0, -250), 4.0f, 100.0f, 0.1f);
     TestEqual(TEXT("friction reduces horizontal speed"), R.X, 240.0);
-    TestEqual(TEXT("friction preserves Z"), R.Z, 0.0);
+    TestEqual(TEXT("friction preserves Z"), R.Z, -250.0);
+    // Zero horizontal velocity hits the near-stationary early-return (no NaN from div-by-zero).
+    const FVector Z = HLMovementCore::ApplyFriction(FVector(0, 0, -250), 4.0f, 100.0f, 0.1f);
+    TestEqual(TEXT("friction zeroes tiny horizontal X"), Z.X, 0.0);
+    TestEqual(TEXT("friction zeroes tiny horizontal Y"), Z.Y, 0.0);
+    TestEqual(TEXT("friction preserves Z when stationary"), Z.Z, -250.0);
     return true;
 }
 
@@ -19,6 +25,9 @@ bool FHLMoveAccelTest::RunTest(const FString&)
     TestEqual(TEXT("adds accelspeed along wishdir"), R.X, 32.0);
     R = HLMovementCore::Accelerate(FVector(320,0,0), FVector(1,0,0), 320.0f, 10.0f, 0.01f);
     TestEqual(TEXT("no gain past wishspeed"), R.X, 320.0);
+    // Zero wishdir (no input) must be a safe no-op, not a NaN.
+    R = HLMovementCore::Accelerate(FVector(200,0,0), FVector::ZeroVector, 0.0f, 10.0f, 0.01f);
+    TestEqual(TEXT("zero wishdir is a no-op"), R.X, 200.0);
     return true;
 }
 
