@@ -51,6 +51,13 @@ namespace HLMovementConsole
         static FAutoConsoleVariableRef CVarParachuteDrag(
             TEXT("HL.ParachuteDragScale"), S.ParachuteDragScale, TEXT("Parachute horizontal drag scale (lower = glides further)."));
 
+        static FAutoConsoleVariableRef CVarMaintainHorizVel(
+            TEXT("HL.MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity,
+            TEXT("0 = velocity follows ramps (launch off crests, no free up-slope speed); 1 = vanilla flat."));
+        static FAutoConsoleVariableRef CVarSlopeGravity(
+            TEXT("HL.SlopeGravity"), S.SlopeGravityScale,
+            TEXT("Gravity-along-slope while walking (downhill speed gain). 0 = off; ~1 = full. Causes slow slide on steep ground."));
+
         static FAutoConsoleVariableRef CVarSpeedo(
             TEXT("HL.Speedometer"), S.bSpeedometer, TEXT("Show the speedometer (0/1)."));
         static FAutoConsoleVariableRef CVarSpeedoJumps(

@@ -58,6 +58,11 @@ namespace HLMovementHooks
                 const FVector WishDir = HLComputeWishDir(Self);
                 const float WishSpeed = Self->GetIsSprinting() ? S.Params.SprintMaxSpeed : S.Params.MaxSpeed;
 
+                // Velocity follows the ramp surface (false) instead of being flattened to horizontal
+                // (true). false => no free speed walking up slopes, and your upward velocity is kept
+                // at a ramp crest so you launch into the air when you hit a ramp fast.
+                Self->bMaintainHorizontalGroundVelocity = S.bMaintainHorizontalVelocity;
+
                 if (Self->MovementMode == MOVE_Walking)
                 {
                     FVector V = Self->Velocity;
@@ -67,6 +72,19 @@ namespace HLMovementHooks
                         V = HLMovementCore::ApplyFriction(V, S.Params.Friction, S.Params.StopSpeed, Dt);
                     }
                     V = HLMovementCore::Accelerate(V, WishDir, WishSpeed, S.Params.Accelerate, Dt);
+
+                    // Gravity projected onto the slope plane -> accelerate downhill / decelerate uphill.
+                    // Off by default (scale 0); raising it adds Source-like downhill speed but also makes
+                    // you slowly slide on steep ground while standing, so keep the scale modest.
+                    if (S.SlopeGravityScale > 0.0f && Self->CurrentFloor.bWalkableFloor)
+                    {
+                        const FVector N = Self->CurrentFloor.HitResult.ImpactNormal;
+                        if (!N.IsNearlyZero())
+                        {
+                            const FVector Grav(0.0f, 0.0f, Self->GetGravityZ());
+                            V += FVector::VectorPlaneProject(Grav, N) * S.SlopeGravityScale * Dt;
+                        }
+                    }
                     Self->Velocity = V;
                 }
                 else // MOVE_Falling — horizontal only; gravity stays vanilla (handled in PhysFalling)
