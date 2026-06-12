@@ -79,9 +79,6 @@ namespace HLMovementConsole
         static FAutoConsoleVariableRef CVarDebug(
             TEXT("HL.Debug"), S.bDebug,
             TEXT("On-screen debug overlay: movement mode, velocity (H/Vz), and hook firing counts."));
-        static FAutoConsoleVariableRef CVarSurfTestVz(
-            TEXT("HL.SurfTestVz"), S.SurfTestVz,
-            TEXT("DIAGNOSTIC: if non-zero, forces Velocity.Z to this each falling frame (post-move). e.g. 500 = should make you rise if UE keeps our velocity."));
 
         static FAutoConsoleCommand CmdDump(
             TEXT("HL.Dump"), TEXT("Print the current Half-Life movement settings."),

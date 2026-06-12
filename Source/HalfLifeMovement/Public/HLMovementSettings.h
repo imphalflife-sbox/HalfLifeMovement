@@ -14,7 +14,7 @@ struct FHLMovementSettings
     bool  bMaintainHorizontalVelocity = false; // false: velocity follows ramps (launch off crests, no free up-slope speed)
     bool  bSlopeLandBoost = true;              // landing on a slope clips/redirects fall-speed along it (downhill gain, uphill loss)
     float SlopeGravityScale = 0.0f;            // >0: gravity-along-slope while walking (downhill speed gain; modest values)
-    float WalkableFloorAngle = 45.0f;          // <0: leave vanilla; >=0: max walkable slope (deg). Lower => steeper ramps become surfable (slide instead of walk)
+    float WalkableFloorAngle = 35.0f;          // <0: leave vanilla; >=0: max walkable slope (deg). Lower => steeper ramps become surfable (slide instead of walk)
     bool  bSurf = true;                        // while airborne, slide along a non-walkable surface (bypass UE slope-boost removal) so you can ride/launch up it
     float SurfProbeDistance = 80.0f;           // (unused) legacy probe distance
     FHLMoveParams Params;            // accel/airaccel/friction/cap/maxspeed/sprintmaxspeed
@@ -22,7 +22,6 @@ struct FHLMovementSettings
     bool  bSpeedometerJumpSpeeds = true;
     int32 SpeedUnit = 0;             // 0=u/s(cm/s) 1=m/s 2=km/h
     bool  bDebug = false;            // on-screen debug overlay (movement mode, velocity, hook firing)
-    float SurfTestVz = 0.0f;         // DIAGNOSTIC: if non-zero, force Velocity.Z to this each falling frame (post-move) to test whether UE keeps our velocity
 
     static FHLMovementSettings& Get();
 };
