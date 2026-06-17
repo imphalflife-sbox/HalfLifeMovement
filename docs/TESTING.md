@@ -19,7 +19,12 @@ console cvars; persist them with `HL.Save`.
 - [ ] **Forward bhop** (hold W): speed is *preserved* across straight hops (not lost, not gained).
 - [ ] **Airstrafe**: in the air hold A *or* D and turn the mouse the same way → speed builds; the
       speedometer per-jump deltas go **green**.
-- [ ] **ABH**: hold S (move backward) and jump repeatedly → speed gains.
+- [ ] **ABH**: build speed past the cap, then **face ~180° away from your travel direction** and
+      bhop → speed gains (geometric trigger — no movement key required; `HL.Debug` `view=` goes
+      negative, `abh=` shows the per-hop boost).
+- [ ] **ABH steering**: while ABH-ing, **hold A *or* D and sweep the mouse** → you turn/curve and
+      keep gaining speed. (Regression guard: holding **S** during ABH must NOT lock out steering —
+      the boost no longer depends on S, so strafe-turn stays available.)
 - [ ] Speedometer shows live horizontal speed + recent jump speeds, color-coded green/red.
 
 ## Slopes & launches (walkable, ≤ WalkableFloorAngle)

@@ -159,7 +159,7 @@ namespace HLMovementConsole
             TEXT("1 = ride conveyor belts and keep the speed (additive) when you jump/walk off; 0 = no belt push."));
         static FAutoConsoleVariableRef CVarABH(
             TEXT("HL.ABH"), S.bABH,
-            TEXT("1 = HL2 accelerated back hopping: turning around + holding S + bhopping gains speed."));
+            TEXT("1 = HL2 accelerated back hopping: face away from your motion + bhop to gain speed (geometric, no movement key required; hold A/D + sweep the mouse to steer)."));
         static FAutoConsoleVariableRef CVarABHBoost(
             TEXT("HL.ABHBoost"), S.ABHBoost,
             TEXT("Sets the ABH cap: capRef = MaxSpeed*(1+this) (default 0.5). Over capRef, back-hops accelerate."));
@@ -168,7 +168,7 @@ namespace HLMovementConsole
             TEXT("Max horizontal speed a single ABH hop can add, cm/s (default 1000). Bounds surf launches."));
         static FAutoConsoleVariableRef CVarABHDeadzone(
             TEXT("HL.ABHDeadzone"), S.ABHDeadzone,
-            TEXT("Min back-press strength (-dot(input,velocity), 0..1) to engage ABH (default 0.5)."));
+            TEXT("Min facing-away strength (-dot(view,velocity), 0..1) to engage ABH (default 0.5). Geometric: how directly you must face opposite your motion; no movement key required. Engages when HL.Debug 'view=' drops below -this (e.g. view < -0.5)."));
         static FAutoConsoleVariableRef CVarABHMinInterval(
             TEXT("HL.ABHMinInterval"), S.ABHMinInterval,
             TEXT("Min seconds since the previous jump to earn an ABH boost (default 0.25). Rapid auto-bhop re-jumps up a ramp have a tiny interval and earn no boost; real spaced hops do. Watch 'interval=' on HL.Debug to tune."));

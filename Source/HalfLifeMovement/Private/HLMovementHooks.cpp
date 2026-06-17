@@ -234,42 +234,49 @@ namespace HLMovementHooks
                 GHLLastJumpTimeSeconds = NowSeconds;
                 if (S.bDebug) { FHLDebugState::Get().ABHJumpInterval = JumpInterval; }
 
-                // Accelerated Back Hopping. The technique: face AWAY from your travel direction
-                // (turn 180) and hold S, which drives your input TOWARD your travel direction. So ABH =
-                // input pointing ALONG your velocity while your view points AWAY from it. That facing
-                // test is what separates ABH from a normal forward (W) bhop -- both drive input along
-                // velocity, but forward bhop faces along it. When over the cap we add a boost ALONG the
-                // velocity, scaled by how directly the input drives along it and clamped to a max, so
-                // strafing/no-keys/slope-noise can't fire it and surf speeds can't explode. Uses the raw
-                // input vector (zero when no key held). Before RecordJump so the speedometer reflects it.
+                // Accelerated Back Hopping (HL2-style, GEOMETRIC trigger). The technique: face AWAY from
+                // your travel direction (turn ~180) and bhop -- you gain speed for moving backward relative
+                // to where you look. The signal is purely geometric: ViewVel = dot(view, velocity) ~ -1 when
+                // you face directly opposite your motion. We deliberately do NOT require a movement key.
+                // The old design gated on holding S (input pointing ALONG velocity), but that input also
+                // SATURATES the air-accel gate -- holding S pushes dot(velocity, wishDir) over AirSpeedCap so
+                // AirAccelerate bails out for EVERY direction, including the perpendicular strafe you need to
+                // turn. So you could ABH or steer, never both. Triggering off facing (not input) frees the
+                // movement keys: hold A/D + sweep the mouse to TURN while the boost keeps pumping speed,
+                // exactly like the HL2 you tested. ViewVel<0 also cleanly separates ABH from a forward (W)
+                // bhop, which faces ALONG its motion (ViewVel ~ +1). Boost is ALONG velocity, scaled by how
+                // directly you face away (FaceAway = -ViewVel, 0..1) and clamped to a max, so a glancing
+                // backward look or surf speeds can't explode it. Before RecordJump so the speedometer reflects it.
                 if (S.bABH)
                 {
-                    FVector InputV = Self->GetLastInputVector();
-                    InputV.Z = 0.0f;
-                    const float InputMag = InputV.Size();
                     const FVector VelH(Self->Velocity.X, Self->Velocity.Y, 0.0f);
                     const float Speed = VelH.Size();
                     const float CapRef = S.Params.MaxSpeed * (1.0f + S.ABHBoost);
                     float Gain = 0.0f;
                     float AlongVel = 0.0f;
                     float ViewVel = 0.0f;
-                    if (InputMag > 0.25f && Speed > CapRef) // real movement input, and over the cap
+                    if (Speed > CapRef) // over the cap
                     {
                         const FVector VelHN = VelH / Speed; // Speed > CapRef > 0
-                        AlongVel = FVector::DotProduct(InputV / InputMag, VelHN);  // input vs motion (ABH ~ +1)
                         const ACharacter* Owner = Self->GetCharacterOwner();
                         FVector ViewFwd = Owner ? Owner->GetControlRotation().Vector() : FVector::ZeroVector;
                         ViewFwd.Z = 0.0f;
                         ViewVel = FVector::DotProduct(ViewFwd.GetSafeNormal(), VelHN); // facing vs motion (ABH ~ -1)
+                        const float FaceAway = -ViewVel; // 0..1, =1 when facing directly opposite your motion
+                        // Debug-only: how hard the current input drives along motion (no longer gates the boost).
+                        FVector InputV = Self->GetLastInputVector();
+                        InputV.Z = 0.0f;
+                        const float InputMag = InputV.Size();
+                        if (InputMag > KINDA_SMALL_NUMBER) { AlongVel = FVector::DotProduct(InputV / InputMag, VelHN); }
                         // Require this jump to be spaced from the last one. Climbing a ramp, auto-bhop
                         // re-jumps every frame (tiny interval); without this each rapid hop would take
                         // the boost and speed would run away until the ramp launch kills you. A real
                         // flat/downhill bhop has a full air arc between jumps and still boosts every hop.
                         const bool bIntervalOK = JumpInterval >= S.ABHMinInterval;
-                        // ABH = driving input along your motion (AlongVel high) while facing away (ViewVel<0).
-                        if (AlongVel > S.ABHDeadzone && ViewVel < 0.0f && bIntervalOK)
+                        // ABH = facing away from your motion (FaceAway over the deadzone) while over the cap.
+                        if (FaceAway > S.ABHDeadzone && bIntervalOK)
                         {
-                            Gain = FMath::Min((Speed - CapRef) * AlongVel, S.ABHMaxGain);
+                            Gain = FMath::Min((Speed - CapRef) * FaceAway, S.ABHMaxGain);
                             Self->Velocity += Gain * VelHN; // accelerate along motion, horizontal only
                         }
                     }
