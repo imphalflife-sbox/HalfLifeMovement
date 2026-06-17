@@ -28,6 +28,15 @@ namespace HLMovementConsole
         GConfig->SetFloat(HLSection, TEXT("ABHDeadzone"),             S.ABHDeadzone, File);
         GConfig->SetFloat(HLSection, TEXT("ABHMinInterval"),         S.ABHMinInterval, File);
         GConfig->SetBool (HLSection, TEXT("VerticalFallDamageOnly"),  S.bVerticalFallDamageOnly, File);
+        GConfig->SetBool (HLSection, TEXT("Swim"),                     S.bSwim, File);
+        GConfig->SetBool (HLSection, TEXT("Sharking"),                 S.bSharking, File);
+        GConfig->SetFloat(HLSection, TEXT("WaterMaxSpeedScale"),       S.WaterMaxSpeedScale, File);
+        GConfig->SetFloat(HLSection, TEXT("WaterAccelerate"),          S.WaterAccelerate, File);
+        GConfig->SetFloat(HLSection, TEXT("WaterFriction"),            S.WaterFriction, File);
+        GConfig->SetBool (HLSection, TEXT("WaterSink"),                S.bWaterSink, File);
+        GConfig->SetFloat(HLSection, TEXT("WaterSinkSpeed"),           S.WaterSinkSpeed, File);
+        GConfig->SetFloat(HLSection, TEXT("WaterBreachZ"),             S.WaterBreachZ, File);
+        GConfig->SetFloat(HLSection, TEXT("WaterBreachImmersion"),     S.WaterBreachImmersion, File);
         GConfig->SetBool (HLSection, TEXT("CarryParachute"),           S.bCarryParachute, File);
         GConfig->SetBool (HLSection, TEXT("CarryJetpack"),             S.bCarryJetpack, File);
         GConfig->SetFloat(HLSection, TEXT("Accelerate"),              S.Params.Accelerate, File);
@@ -68,6 +77,15 @@ namespace HLMovementConsole
         GConfig->GetFloat(HLSection, TEXT("ABHDeadzone"),             S.ABHDeadzone, File);
         GConfig->GetFloat(HLSection, TEXT("ABHMinInterval"),         S.ABHMinInterval, File);
         GConfig->GetBool (HLSection, TEXT("VerticalFallDamageOnly"),  S.bVerticalFallDamageOnly, File);
+        GConfig->GetBool (HLSection, TEXT("Swim"),                     S.bSwim, File);
+        GConfig->GetBool (HLSection, TEXT("Sharking"),                 S.bSharking, File);
+        GConfig->GetFloat(HLSection, TEXT("WaterMaxSpeedScale"),       S.WaterMaxSpeedScale, File);
+        GConfig->GetFloat(HLSection, TEXT("WaterAccelerate"),          S.WaterAccelerate, File);
+        GConfig->GetFloat(HLSection, TEXT("WaterFriction"),            S.WaterFriction, File);
+        GConfig->GetBool (HLSection, TEXT("WaterSink"),                S.bWaterSink, File);
+        GConfig->GetFloat(HLSection, TEXT("WaterSinkSpeed"),           S.WaterSinkSpeed, File);
+        GConfig->GetFloat(HLSection, TEXT("WaterBreachZ"),             S.WaterBreachZ, File);
+        GConfig->GetFloat(HLSection, TEXT("WaterBreachImmersion"),     S.WaterBreachImmersion, File);
         GConfig->GetBool (HLSection, TEXT("CarryParachute"),           S.bCarryParachute, File);
         GConfig->GetBool (HLSection, TEXT("CarryJetpack"),             S.bCarryJetpack, File);
         GConfig->GetFloat(HLSection, TEXT("Accelerate"),              S.Params.Accelerate, File);
@@ -89,13 +107,15 @@ namespace HLMovementConsole
     {
         const FHLMovementSettings& S = FHLMovementSettings::Get();
         const FString Line = FString::Printf(
-            TEXT("[HL] enabled=%d autohop=%d dedBhop=%d bhopKey=%s conveyor=%d abh=%d abhMinInterval=%.2f vertFallDmg=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f speedo=%d unit=%d"),
+            TEXT("[HL] enabled=%d autohop=%d dedBhop=%d bhopKey=%s conveyor=%d abh=%d abhMinInterval=%.2f vertFallDmg=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f speedo=%d unit=%d | swim=%d shark=%d waterScale=%.2f waterAccel=%.1f waterFric=%.1f sink=%d sinkSpd=%.0f breachZ=%.0f breachImm=%.2f"),
             S.bEnabled ? 1 : 0, S.bAutoHop ? 1 : 0, S.bDedicatedBhopKey ? 1 : 0, *S.BhopKey,
             S.bConveyorMomentum ? 1 : 0, S.bABH ? 1 : 0,
             S.ABHMinInterval, S.bVerticalFallDamageOnly ? 1 : 0,
             S.Params.Accelerate, S.Params.AirAccelerate, S.Params.Friction, S.Params.StopSpeed,
             S.Params.AirSpeedCap, S.Params.MaxSpeed, S.Params.SprintMaxSpeed,
-            S.ParachuteDragScale, S.bSpeedometer ? 1 : 0, S.SpeedUnit);
+            S.ParachuteDragScale, S.bSpeedometer ? 1 : 0, S.SpeedUnit,
+            S.bSwim ? 1 : 0, S.bSharking ? 1 : 0, S.WaterMaxSpeedScale, S.WaterAccelerate,
+            S.WaterFriction, S.bWaterSink ? 1 : 0, S.WaterSinkSpeed, S.WaterBreachZ, S.WaterBreachImmersion);
 
         UE_LOG(LogTemp, Display, TEXT("%s"), *Line);
         if (GEngine)
@@ -175,6 +195,29 @@ namespace HLMovementConsole
         static FAutoConsoleVariableRef CVarVerticalFallDamage(
             TEXT("HL.VerticalFallDamageOnly"), S.bVerticalFallDamageOnly,
             TEXT("1 = fall damage counts only vertical impact speed (ignore horizontal bhop/ABH speed); 0 = vanilla (full velocity magnitude)."));
+
+        static FAutoConsoleVariableRef CVarSwim(
+            TEXT("HL.Swim"), S.bSwim,
+            TEXT("1 = HL water movement: swim where you look, bhop key = ascend, idle = sink."));
+        static FAutoConsoleVariableRef CVarSharking(
+            TEXT("HL.Sharking"), S.bSharking,
+            TEXT("1 = sharking: hold the bhop key at the water surface to skip out of the water and skim it fast."));
+        static FAutoConsoleVariableRef CVarWaterScale(
+            TEXT("HL.WaterMaxSpeedScale"), S.WaterMaxSpeedScale,
+            TEXT("Swim speed = MaxSpeed * this (default 0.8, faithful)."));
+        static FAutoConsoleVariableRef CVarWaterAccel(
+            TEXT("HL.WaterAccelerate"), S.WaterAccelerate, TEXT("Water acceleration (default 10)."));
+        static FAutoConsoleVariableRef CVarWaterFriction(
+            TEXT("HL.WaterFriction"), S.WaterFriction, TEXT("Proportional water friction, no stop-speed floor (default 4)."));
+        static FAutoConsoleVariableRef CVarWaterSink(
+            TEXT("HL.WaterSink"), S.bWaterSink, TEXT("1 = drift down when idle in water; 0 = neutral hover."));
+        static FAutoConsoleVariableRef CVarWaterSinkSpeed(
+            TEXT("HL.WaterSinkSpeed"), S.WaterSinkSpeed, TEXT("Idle sink wish-speed, cm/s (default 100)."));
+        static FAutoConsoleVariableRef CVarWaterBreachZ(
+            TEXT("HL.WaterBreachZ"), S.WaterBreachZ, TEXT("Upward breach impulse at the surface, cm/s (default 450, ~a jump)."));
+        static FAutoConsoleVariableRef CVarWaterBreachImmersion(
+            TEXT("HL.WaterBreachImmersion"), S.WaterBreachImmersion,
+            TEXT("Breach allowed only when immersion depth < this, 0..1 (default 0.5 = capsule half-submerged)."));
 
         static FAutoConsoleVariableRef CVarSpeedo(
             TEXT("HL.Speedometer"), S.bSpeedometer, TEXT("Show the speedometer (0/1)."));

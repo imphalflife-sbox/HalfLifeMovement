@@ -25,6 +25,16 @@ struct FHLMovementSettings
     float ABHDeadzone = 0.5f;                   // min facing-away strength (-dot(view,velocity), 0..1) to engage ABH; geometric like HL2, NO movement key required (so you can hold A/D to air-strafe-turn during ABH)
     float ABHMinInterval = 0.25f;               // min seconds since the previous jump required to earn an ABH boost; rapid auto-bhop re-jumps up a ramp have a tiny interval and are filtered, real spaced hops pass (measured in the DoJump hook, immune to per-frame MovementMode sampling)
     bool  bVerticalFallDamageOnly = true;       // fall damage uses only vertical impact speed (zeroes horizontal), so fast bhops/ABH don't die from horizontal speed on landing
+    // Swimming (HL PM_WaterMove) + sharking. Speeds in cm/s. See docs/superpowers/specs/2026-06-17-swimming-design.md.
+    bool  bSwim = true;                          // HL water movement (swim where you look, jump=ascend, idle=sink)
+    bool  bSharking = true;                      // surface breach: hold the bhop key at the surface to skip out of the water
+    float WaterMaxSpeedScale = 0.8f;             // swim speed = MaxSpeed * this (faithful *0.8)
+    float WaterAccelerate = 10.0f;               // water acceleration (sv_accelerate analogue)
+    float WaterFriction = 4.0f;                  // proportional water friction, no stop-speed floor (sv_friction analogue)
+    bool  bWaterSink = true;                     // drift down when idle (no WASD and bhop key not held); off = neutral hover
+    float WaterSinkSpeed = 100.0f;               // idle sink wish-speed, cm/s
+    float WaterBreachZ = 450.0f;                 // upward breach impulse at the surface, cm/s (~a normal jump)
+    float WaterBreachImmersion = 0.5f;           // breach allowed only when ImmersionDepth() < this (capsule <= half submerged)
     FHLMoveParams Params;            // accel/airaccel/friction/cap/maxspeed/sprintmaxspeed
     bool  bSpeedometer = true;
     bool  bSpeedometerJumpSpeeds = true;
