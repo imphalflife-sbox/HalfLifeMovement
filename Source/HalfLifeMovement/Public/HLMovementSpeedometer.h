@@ -41,6 +41,7 @@ struct FHLDebugState
     float   ABHAlongVel = 0.0f;    // last ABH dot(input, velocity): input drives along motion (ABH ~ +1)
     float   ABHViewVel = 0.0f;     // last ABH dot(view, velocity): facing vs motion (ABH ~ -1)
     float   ABHJumpInterval = 0.0f; // seconds since the previous jump (gates the boost; tiny = rapid ramp re-jump)
+    bool    bBhopKeyDown = false;   // HLBhopHeld() this frame -- verify the dedicated bhop key polls correctly when the key is unbound from every game action
     static FHLDebugState& Get();
 };
 

@@ -100,6 +100,8 @@ namespace HLSpeedometer
                 D.BeltSpeed, D.bOnBelt ? 1 : 0), C, DX, DY, Font); DY += HLLineHeight;
             HUD->DrawText(FString::Printf(TEXT("abh=%.0f along=%.2f view=%.2f interval=%.3f"),
                 D.ABHLastBoost, D.ABHAlongVel, D.ABHViewVel, D.ABHJumpInterval), C, DX, DY, Font); DY += HLLineHeight;
+            HUD->DrawText(FString::Printf(TEXT("bhopKeyDown=%d dedicated=%d key=%s"),
+                D.bBhopKeyDown ? 1 : 0, S.bDedicatedBhopKey ? 1 : 0, *S.BhopKey), C, DX, DY, Font); DY += HLLineHeight;
             HUD->DrawText(FString::Printf(TEXT("ComputeSlideVector calls=%u nZ=%.2f walkZ=%.2f override=%d"),
                 D.CSVCalls, D.CSVNormalZ, D.CSVWalkableZ, D.bCSVWouldOverride ? 1 : 0), C, DX, DY, Font); DY += HLLineHeight;
             HUD->DrawText(FString::Printf(TEXT("SlideAlongSurface calls=%u nZ=%.2f"),

@@ -14,6 +14,8 @@
 #include "CollisionQueryParams.h"
 #include "Components/SceneComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "GameFramework/PlayerController.h"
+#include "InputCoreTypes.h"
 
 namespace HLMovementHooks
 {
@@ -38,6 +40,22 @@ static FVector HLComputeWishDir(const UFGCharacterMovementComponent* CMC)
     FVector Accel = CMC->GetCurrentAcceleration();
     Accel.Z = 0.0f;
     return Accel.GetSafeNormal();
+}
+
+// True while the bhop trigger key is held. With bDedicatedBhopKey we poll a configurable key directly
+// off the player controller (raw physical key state, independent of the game's input bindings), so the
+// bhop trigger is decoupled from the game Jump action that jetpack/parachute are bound to. With the
+// toggle off it falls back to FG's mIsPressingJump (the game Jump action) -- the original behavior.
+// Local-player gating is done by the callers (HLIsLocalPlayerMovement).
+static bool HLBhopHeld(const UFGCharacterMovementComponent* Self, const FHLMovementSettings& S)
+{
+    if (!S.bDedicatedBhopKey) { return Self->mIsPressingJump; }
+    const ACharacter* Owner = Self ? Self->GetCharacterOwner() : nullptr;
+    const APlayerController* PC = Owner ? Cast<APlayerController>(Owner->GetController()) : nullptr;
+    if (PC == nullptr) { return false; }
+    FKey Key(FName(*S.BhopKey));
+    if (!Key.IsValid()) { Key = EKeys::SpaceBar; }
+    return PC->IsInputKeyDown(Key);
 }
 
 // Velocity imparted by the conveyor belt the player is standing on, in world space (zero when off
@@ -145,7 +163,7 @@ namespace HLMovementHooks
                 if (Self->MovementMode == MOVE_Walking)
                 {
                     FVector V = OwnVel;
-                    const bool bSkipFriction = S.bAutoHop && Self->mIsPressingJump; // about to auto-hop; don't bleed speed
+                    const bool bSkipFriction = S.bAutoHop && HLBhopHeld(Self, S); // about to auto-hop; don't bleed speed
                     if (!bSkipFriction)
                     {
                         V = HLMovementCore::ApplyFriction(V, S.Params.Friction, S.Params.StopSpeed, Dt);
@@ -352,12 +370,19 @@ namespace HLMovementHooks
                     }
                 }
 
-                // Auto-bhop: while holding jump, re-jump the moment we're grounded (launches with the
-                // slope-boosted horizontal speed from above).
-                if (S.bAutoHop && Self->mIsPressingJump && Self->IsMovingOnGround())
+                // Bhop trigger. The held state comes from HLBhopHeld(): a mod-polled key when
+                // HL.DedicatedBhopKey is on (decoupled from the game Jump action / jump-key equipment),
+                // else FG's mIsPressingJump. Hold-to-bhop when HL.AutoHop is on; tap-to-jump (rising
+                // edge) when it's off. The first DoJump flips MovementMode to falling, so the grounded
+                // guard prevents any second trigger the same frame. Local player only -> static is fine.
+                static bool bWasBhopHeld = false;
+                const bool bBhopHeld = HLBhopHeld(Self, S);
+                const bool bBhopJustPressed = bBhopHeld && !bWasBhopHeld;
+                if (Self->IsMovingOnGround() && bBhopHeld && (S.bAutoHop || bBhopJustPressed))
                 {
                     Self->DoJump(false);
                 }
+                bWasBhopHeld = bBhopHeld;
 
                 LastMode = Self->MovementMode;
                 LastVelocity = Self->Velocity;
@@ -369,6 +394,7 @@ namespace HLMovementHooks
                     D.CustomMode = Self->CustomMovementMode;
                     D.bOnGround = Self->IsMovingOnGround();
                     D.Vel = Self->Velocity;
+                    D.bBhopKeyDown = bBhopHeld;
                 }
             });
 
