@@ -198,9 +198,9 @@ namespace HLMovementHooks
                     FVector WishVel = Wish.GetSafeNormal() * SwimSpeed;
                     if (bUp) { WishVel.Z = SwimSpeed; }                               // ascend
                     else if (bIdle && S.bWaterSink) { WishVel = FVector(0, 0, -S.WaterSinkSpeed); } // drift down
-                    const float WishSpeed = FMath::Min(WishVel.Size(), SwimSpeed);
-                    const FVector WishDir = WishVel.GetSafeNormal();
-                    NewVel = HLMovementCore::WaterMove(OwnVel, WishDir, WishSpeed,
+                    const float SwimWishSpeed = FMath::Min(WishVel.Size(), SwimSpeed);
+                    const FVector SwimWishDir = WishVel.GetSafeNormal();
+                    NewVel = HLMovementCore::WaterMove(OwnVel, SwimWishDir, SwimWishSpeed,
                         S.WaterAccelerate, S.WaterFriction, Dt);
 
                     // The engine's PhysSwimming clamps upward velocity to 0.33*MaxSwimSpeed when buoyant,
