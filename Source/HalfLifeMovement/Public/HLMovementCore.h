@@ -14,8 +14,9 @@ struct FHLMoveParams
 };
 
 /**
- * Pure GoldSrc movement math. Functions take/return a full FVector velocity but only
- * modify the horizontal (X,Y) components; Z is preserved. No engine/world state.
+ * Pure GoldSrc movement math. Most functions take/return a full FVector velocity but only
+ * modify the horizontal (X,Y) components (Z preserved); WaterMove is the exception — it
+ * operates on the full 3D velocity (swimming has vertical motion). No engine/world state.
  */
 namespace HLMovementCore
 {

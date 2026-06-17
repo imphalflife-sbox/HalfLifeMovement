@@ -29,7 +29,7 @@ console cvars; persist them with `HL.Save`.
 
 ## Swimming & sharking
 - [ ] Entering deep water puts you in the swimming movement mode (`HL.Debug` `mode=`).
-- [ ] **Swim where you look**: look down+forward dives, look up+forward climbs.
+- [ ] **Swim where you look**: look down+forward dives; look up+forward climbs **when submerged** (near the surface the engine flattens upward look-swim — use the bhop key to ascend there).
 - [ ] **Ascend**: hold the bhop key → you rise.
 - [ ] **Idle sink**: release all input → you drift down; `HL.WaterSink 0` → neutral hover.
 - [ ] Swim speed ~0.8x run; `HL.WaterMaxSpeedScale` / `HL.WaterAccelerate` / `HL.WaterFriction` tune live.
