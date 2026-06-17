@@ -126,7 +126,8 @@ namespace HLMovementHooks
                 FHLMovementSettings& S = FHLMovementSettings::Get();
                 GHLApplyDesiredVelocity = false; // armed only on the compute paths below
                 if (!S.bEnabled || !HLIsLocalPlayerMovement(Self)) { return; }
-                if (Self->MovementMode != MOVE_Walking && Self->MovementMode != MOVE_Falling) { return; } // defer to vanilla for slide/zipline/etc.
+                if (Self->MovementMode != MOVE_Walking && Self->MovementMode != MOVE_Falling
+                    && Self->MovementMode != MOVE_Swimming) { return; } // defer to vanilla for slide/zipline/etc.
 
                 // Defer to vanilla when an animation is driving movement (emotes/scripted root motion),
                 // so we don't override root-motion velocity.
@@ -184,6 +185,29 @@ namespace HLMovementHooks
                         }
                     }
                     NewVel = V;
+                }
+                else if (Self->MovementMode == MOVE_Swimming && S.bSwim)
+                {
+                    // HL PM_WaterMove. Wish direction is the 3D input (GetCurrentAcceleration is NOT
+                    // gravity-flattened while swimming, so looking down+forward dives). Bhop key = swim
+                    // straight up (ascend); fully idle = drift down. Then WaterMove on the full 3D velocity.
+                    const float SwimSpeed = S.Params.MaxSpeed * S.WaterMaxSpeedScale;
+                    FVector Wish = Self->GetCurrentAcceleration(); // 3D in water
+                    const bool bUp = HLBhopHeld(Self, S);
+                    const bool bIdle = Wish.IsNearlyZero() && !bUp;
+                    FVector WishVel = Wish.GetSafeNormal() * SwimSpeed;
+                    if (bUp) { WishVel.Z = SwimSpeed; }                               // ascend
+                    else if (bIdle && S.bWaterSink) { WishVel = FVector(0, 0, -S.WaterSinkSpeed); } // drift down
+                    const float WishSpeed = FMath::Min(WishVel.Size(), SwimSpeed);
+                    const FVector WishDir = WishVel.GetSafeNormal();
+                    NewVel = HLMovementCore::WaterMove(OwnVel, WishDir, WishSpeed,
+                        S.WaterAccelerate, S.WaterFriction, Dt);
+
+                    // The engine's PhysSwimming clamps upward velocity to 0.33*MaxSwimSpeed when buoyant,
+                    // which would throttle both ascent and the sharking breach. Raise MaxSwimSpeed so the
+                    // ceiling sits comfortably above our swim/breach speeds. (Buoyancy stays at its neutral
+                    // default so gravity is cancelled underwater; our vertical wish drives up/down instead.)
+                    Self->MaxSwimSpeed = 3.1f * FMath::Max(SwimSpeed, S.WaterBreachZ);
                 }
                 else // MOVE_Falling — horizontal only; gravity stays vanilla (handled in PhysFalling)
                 {
