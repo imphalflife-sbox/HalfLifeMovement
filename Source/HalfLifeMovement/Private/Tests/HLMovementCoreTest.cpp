@@ -55,3 +55,25 @@ bool FHLMoveClipTest::RunTest(const FString&)
     TestTrue(TEXT("no velocity into plane"), FMath::Abs(FVector::DotProduct(R, N)) < 0.01);
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHLMoveWaterTest, "HalfLifeMovement.Core.WaterMove",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHLMoveWaterTest::RunTest(const FString&)
+{
+    // Proportional friction bleeds the FULL 3D speed (unlike land friction, which preserves Z).
+    // No wish (idle): friction only. 400 - 0.1*400*4 = 240, applied to whichever axis carries speed.
+    FVector R = HLMovementCore::WaterMove(FVector(400,0,0), FVector::ZeroVector, 0.0f, 10.0f, 4.0f, 0.1f);
+    TestEqual(TEXT("water friction bleeds horizontal"), R.X, 240.0);
+    R = HLMovementCore::WaterMove(FVector(0,0,-400), FVector::ZeroVector, 0.0f, 10.0f, 4.0f, 0.1f);
+    TestEqual(TEXT("water friction bleeds vertical too"), R.Z, -240.0);
+    // Vertical accel from rest (swim up): wishdir +Z, wishspeed 200, accelspeed = 10*200*0.01 = 20.
+    R = HLMovementCore::WaterMove(FVector::ZeroVector, FVector(0,0,1), 200.0f, 10.0f, 4.0f, 0.01f);
+    TestEqual(TEXT("water accel drives wishdir (swim up)"), R.Z, 20.0);
+    // Converge: at wishspeed already, friction drops it then accel tops it back to wishspeed.
+    R = HLMovementCore::WaterMove(FVector(0,0,200), FVector(0,0,1), 200.0f, 10.0f, 4.0f, 0.01f);
+    TestEqual(TEXT("water accel converges to wishspeed"), R.Z, 200.0);
+    // Zero wishdir + zero wishspeed is a safe friction-only no-op (no NaN).
+    R = HLMovementCore::WaterMove(FVector::ZeroVector, FVector::ZeroVector, 0.0f, 10.0f, 4.0f, 0.01f);
+    TestEqual(TEXT("zero velocity stays zero"), R.Size(), 0.0);
+    return true;
+}

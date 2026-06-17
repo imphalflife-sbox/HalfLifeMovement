@@ -43,6 +43,28 @@ namespace HLMovementCore
         return V;
     }
 
+    FVector WaterMove(const FVector& Velocity, const FVector& WishDir, float WishSpeed, float Accel, float Friction, float DeltaTime)
+    {
+        // Faithful PM_WaterMove. Unlike ground/air, this acts on the FULL 3D velocity and uses
+        // proportional friction with NO stop-speed floor (the floaty water deceleration). Accel then
+        // brings total speed toward WishSpeed along WishDir (WishDir is assumed already normalized).
+        FVector V = Velocity;
+        const float Speed = V.Size();
+        float NewSpeed = 0.0f;
+        if (Speed > 0.0f)
+        {
+            NewSpeed = Speed - DeltaTime * Speed * Friction;
+            if (NewSpeed < 0.0f) { NewSpeed = 0.0f; }
+            V *= (NewSpeed / Speed);
+        }
+        const float AddSpeed = WishSpeed - NewSpeed;
+        if (AddSpeed <= 0.0f) { return V; }
+        float AccelSpeed = Accel * WishSpeed * DeltaTime;
+        if (AccelSpeed > AddSpeed) { AccelSpeed = AddSpeed; }
+        V += AccelSpeed * WishDir;
+        return V;
+    }
+
     FVector ClipVelocity(const FVector& Velocity, const FVector& PlaneNormal, float Overbounce)
     {
         const float Backoff = FVector::DotProduct(Velocity, PlaneNormal) * Overbounce;

@@ -22,5 +22,6 @@ namespace HLMovementCore
     FVector ApplyFriction(const FVector& Velocity, float Friction, float StopSpeed, float DeltaTime);
     FVector Accelerate(const FVector& Velocity, const FVector& WishDir, float WishSpeed, float Accel, float DeltaTime);
     FVector AirAccelerate(const FVector& Velocity, const FVector& WishDir, float WishSpeed, float AirSpeedCap, float AirAccel, float DeltaTime);
+    FVector WaterMove(const FVector& Velocity, const FVector& WishDir, float WishSpeed, float Accel, float Friction, float DeltaTime);
     FVector ClipVelocity(const FVector& Velocity, const FVector& PlaneNormal, float Overbounce);
 }
