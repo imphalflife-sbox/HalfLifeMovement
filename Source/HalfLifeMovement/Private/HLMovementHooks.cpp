@@ -3,6 +3,7 @@
 #include "HLMovementSettings.h"
 #include "HLMovementSpeedometer.h"
 #include "FGCharacterMovementComponent.h"
+#include "Buildables/FGBuildableConveyorBelt.h"
 #include "Patching/NativeHookManager.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/HUD.h"
@@ -11,22 +12,14 @@
 #include "CollisionQueryParams.h"
 #include "Components/SceneComponent.h"
 #include "Components/CapsuleComponent.h"
-#include "FGCharacterPlayer.h"
-#include "Equipment/FGEquipment.h"
-#include "Equipment/FGJetPack.h"
-#include "Equipment/FGParachute.h"
-#include "InputMappingContext.h"
-#include "EnhancedInputSubsystems.h"
-#include "GameFramework/PlayerController.h"
-#include "Engine/LocalPlayer.h"
 
 namespace HLMovementHooks
 {
     // NOTE: We intentionally do NOT hook GetMaxSpeed. It is a tiny function that funchook
     // cannot patch ("Too short instructions" -> crash). It is also unnecessary: UE's lateral
-    // air-speed clamp lives inside CalcVelocity, which we fully replace and Cancel() below,
-    // so our AirAccelerate output is never clamped. If a residual air clamp ever appears,
-    // address it via a hookable (larger) function, not GetMaxSpeed.
+    // air-speed clamp lives inside CalcVelocity, whose output we overwrite (we set Velocity in a
+    // CalcVelocity _AFTER hook below), so our AirAccelerate output is never clamped. If a residual
+    // air clamp ever appears, address it via a hookable (larger) function, not GetMaxSpeed.
 
     // True only for the local player's own character. Prevents our movement model from
     // affecting NPCs/creatures or remote pawns that share this component class. Takes the base
@@ -45,65 +38,18 @@ static FVector HLComputeWishDir(const UFGCharacterMovementComponent* CMC)
     return Accel.GetSafeNormal();
 }
 
-// Move equipment deploy/thrust (parachute, jetpack) off the jump key so Space is pure bhop. Each of
-// those equipments has its own InputMappingContext mapping its deploy/thrust action to Space; we
-// rebind any Space mapping in those contexts to ToKey and rebuild. Idempotent: once remapped there
-// are no Space mappings left, so it does nothing on later frames.
-static void HLMoveEquipmentBindOffJump(const UFGCharacterMovementComponent* Self, FKey ToKey)
+// Velocity imparted by the conveyor belt the player is standing on, in world space (zero when off
+// a belt, airborne, or the feature is disabled). We keep this OUT of the HL friction/accel calc and
+// re-add it after, so riding a belt is clean and leaving it folds the belt speed into the player's
+// own velocity (emergent momentum preservation). Belts only (v1); callers are already gated to the
+// local player. CurrentFloor is the surface the character is standing on -> naturally empty in air.
+static FVector HLGetConveyorBaseVelocity(UFGCharacterMovementComponent* Self)
 {
-    const AFGCharacterPlayer* Player = Self ? Cast<AFGCharacterPlayer>(Self->GetCharacterOwner()) : nullptr;
-    if (Player == nullptr) { return; }
-    const bool bDebug = FHLMovementSettings::Get().bDebug;
-    const TArray<AFGEquipment*> Equips = Player->GetActiveEquipments();
-    if (bDebug)
-    {
-        FHLDebugState& D = FHLDebugState::Get();
-        D.EquipCount = Equips.Num(); D.ChuteJetMappings = -1; D.EquipNames.Reset();
-        for (const AFGEquipment* Eq : Equips)
-        {
-            D.EquipNames += (Eq ? Eq->GetClass()->GetName() : FString(TEXT("null"))) + TEXT(" ");
-        }
-    }
-    bool bAnyChanged = false;
-    for (AFGEquipment* Eq : Equips)
-    {
-        if (Eq == nullptr) { continue; }
-        // The shipped jetpack/parachute are Blueprint classes (Equip_JetPack_C, Equip_Parachute_C)
-        // that are NOT children of the C++ AFGJetPack/AFGParachute, so match by class name.
-        const FString EqName = Eq->GetClass()->GetName();
-        if (!EqName.Contains(TEXT("JetPack")) && !EqName.Contains(TEXT("Parachute"))) { continue; }
-        UInputMappingContext* IMC = Eq->GetMappingContext();
-        if (IMC == nullptr) { continue; }
-        const TArray<FEnhancedActionKeyMapping>& Maps = IMC->GetMappings();
-        if (bDebug)
-        {
-            FHLDebugState& D = FHLDebugState::Get();
-            D.ChuteJetMappings = Maps.Num();
-            D.ChuteJetKeyName = Maps.Num() > 0 ? Maps[0].Key.GetFName().ToString() : FString(TEXT("(none)"));
-        }
-        for (int32 i = 0; i < Maps.Num(); ++i)
-        {
-            if (Maps[i].Key == EKeys::SpaceBar)
-            {
-                IMC->GetMapping(i).Key = ToKey;
-                bAnyChanged = true;
-                if (bDebug) { FHLDebugState::Get().RemapsApplied++; }
-            }
-        }
-    }
-    if (bAnyChanged)
-    {
-        if (const APlayerController* PC = Cast<APlayerController>(Player->GetController()))
-        {
-            if (ULocalPlayer* LP = PC->GetLocalPlayer())
-            {
-                if (UEnhancedInputLocalPlayerSubsystem* Subsys = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
-                {
-                    Subsys->RequestRebuildControlMappings();
-                }
-            }
-        }
-    }
+    const FHLMovementSettings& S = FHLMovementSettings::Get();
+    if (!S.bConveyorMomentum || !Self->CurrentFloor.bBlockingHit) { return FVector::ZeroVector; }
+    AFGBuildableConveyorBelt* Belt = Cast<AFGBuildableConveyorBelt>(Self->CurrentFloor.HitResult.GetActor());
+    if (Belt == nullptr) { return FVector::ZeroVector; }
+    return Belt->GetVelocityForBase(Self->GetOwner(), Self->CurrentFloor.HitResult.GetComponent());
 }
 
 // Surf: the TickComponent (post-move) hook maintains the player's velocity while in contact with a
@@ -111,6 +57,18 @@ static void HLMoveEquipmentBindOffJump(const UFGCharacterMovementComponent* Self
 // where it survives UE's velocity re-derivation (verified by HL.SurfTestVz). GHLWasSurfing is shared
 // so CalcVelocity can skip its own air-accel during surf (the integration owns velocity then).
 static bool GHLWasSurfing = false;
+
+// CalcVelocity computes the HL velocity from the PRE-call velocity and stashes it here; the
+// CalcVelocity _AFTER hook applies it once vanilla FG CalcVelocity has run. We let FG's override run
+// (instead of Cancel()-ing it) so its land/anim bookkeeping -- the pre-land prediction that drives the
+// landing camera dip + audio -- keeps being serviced; skipping it leaves that effect re-triggering
+// while grounded. Singleplayer local player only, not re-entrant -> a static is fine.
+static FVector GHLDesiredVelocity = FVector::ZeroVector;
+static bool    GHLApplyDesiredVelocity = false;
+
+// Conveyor belt velocity for the current frame, captured in the CalcVelocity before-hook and
+// re-added in the _AFTER hook (mirrors FG's mAddedVelocity layering). Local player only -> static.
+static FVector GHLBeltVelocity = FVector::ZeroVector;
 
 namespace HLMovementHooks
 {
@@ -128,6 +86,7 @@ namespace HLMovementHooks
             [](auto& Scope, UFGCharacterMovementComponent* Self, float Dt, float Friction, bool bFluid, float BrakingDecel)
             {
                 FHLMovementSettings& S = FHLMovementSettings::Get();
+                GHLApplyDesiredVelocity = false; // armed only on the compute paths below
                 if (!S.bEnabled || !HLIsLocalPlayerMovement(Self)) { return; }
                 if (Self->MovementMode != MOVE_Walking && Self->MovementMode != MOVE_Falling) { return; } // defer to vanilla for slide/zipline/etc.
 
@@ -150,9 +109,23 @@ namespace HLMovementHooks
                     Self->SetWalkableFloorAngle(S.WalkableFloorAngle);
                 }
 
+                // Conveyor momentum: lift the belt's contribution out so HL friction/accel act only
+                // on the player's own velocity; the _AFTER hook re-adds it. Leaving the belt (B->0)
+                // folds the belt speed into the own velocity -> momentum carries into the air.
+                const FVector BeltVel = HLGetConveyorBaseVelocity(Self);
+                GHLBeltVelocity = BeltVel;
+                const FVector OwnVel = Self->Velocity - BeltVel;
+                if (S.bDebug)
+                {
+                    FHLDebugState& D = FHLDebugState::Get();
+                    D.BeltSpeed = BeltVel.Size();
+                    D.bOnBelt = !BeltVel.IsNearlyZero();
+                }
+
+                FVector NewVel;
                 if (Self->MovementMode == MOVE_Walking)
                 {
-                    FVector V = Self->Velocity;
+                    FVector V = OwnVel;
                     const bool bSkipFriction = S.bAutoHop && Self->mIsPressingJump; // about to auto-hop; don't bleed speed
                     if (!bSkipFriction)
                     {
@@ -172,19 +145,38 @@ namespace HLMovementHooks
                             V += FVector::VectorPlaneProject(Grav, N) * S.SlopeGravityScale * Dt;
                         }
                     }
-                    Self->Velocity = V;
+                    NewVel = V;
                 }
                 else // MOVE_Falling — horizontal only; gravity stays vanilla (handled in PhysFalling)
                 {
                     // Air accel (airstrafe / ABH). During surf, the TickComponent integration owns the
-                    // velocity (gravity+airaccel+clip), so skip air-accel here to avoid double-applying it.
-                    if (!GHLWasSurfing)
-                    {
-                        Self->Velocity = HLMovementCore::AirAccelerate(
-                            Self->Velocity, WishDir, WishSpeed, S.Params.AirSpeedCap, S.Params.AirAccelerate, Dt);
-                    }
+                    // velocity (gravity+airaccel+clip), so skip air-accel here and keep the pre-call
+                    // velocity (TickComponent overwrites it post-move) to avoid double-applying it.
+                    NewVel = GHLWasSurfing
+                        ? OwnVel
+                        : HLMovementCore::AirAccelerate(
+                            OwnVel, WishDir, WishSpeed, S.Params.AirSpeedCap, S.Params.AirAccelerate, Dt);
                 }
-                Scope.Cancel(); // skip vanilla CalcVelocity for walk/air
+
+                // Stash the HL velocity and let vanilla CalcVelocity proceed (do NOT Cancel): FG's
+                // override runs its land/anim bookkeeping, then the _AFTER hook overwrites the velocity
+                // it produced with NewVel so the HL model still wins (FG's air clamp is discarded).
+                GHLDesiredVelocity = NewVel;
+                GHLApplyDesiredVelocity = true;
+            });
+
+        // Second half of the velocity replacement: apply the HL velocity AFTER vanilla FG CalcVelocity
+        // has run (and done its land/anim bookkeeping). This pair (compute-before, apply-after) replaces
+        // the old Scope.Cancel(), which skipped FG's bookkeeping and left the landing camera/audio
+        // re-triggering while grounded.
+        SUBSCRIBE_METHOD_VIRTUAL_AFTER(UFGCharacterMovementComponent::CalcVelocity, Sample,
+            [](UFGCharacterMovementComponent* Self, float Dt, float Friction, bool bFluid, float BrakingDecel)
+            {
+                if (GHLApplyDesiredVelocity && HLIsLocalPlayerMovement(Self))
+                {
+                    Self->Velocity = GHLDesiredVelocity + GHLBeltVelocity;
+                }
+                GHLApplyDesiredVelocity = false;
             });
 
         // Record horizontal takeoff speed on each successful jump (incl. auto-hops).
@@ -193,6 +185,49 @@ namespace HLMovementHooks
             {
                 FHLMovementSettings& S = FHLMovementSettings::Get();
                 if (!S.bEnabled || !Result || !HLIsLocalPlayerMovement(Self)) { return; }
+
+                // Accelerated Back Hopping. The technique: face AWAY from your travel direction
+                // (turn 180) and hold S, which drives your input TOWARD your travel direction. So ABH =
+                // input pointing ALONG your velocity while your view points AWAY from it. That facing
+                // test is what separates ABH from a normal forward (W) bhop -- both drive input along
+                // velocity, but forward bhop faces along it. When over the cap we add a boost ALONG the
+                // velocity, scaled by how directly the input drives along it and clamped to a max, so
+                // strafing/no-keys/slope-noise can't fire it and surf speeds can't explode. Uses the raw
+                // input vector (zero when no key held). Before RecordJump so the speedometer reflects it.
+                if (S.bABH)
+                {
+                    FVector InputV = Self->GetLastInputVector();
+                    InputV.Z = 0.0f;
+                    const float InputMag = InputV.Size();
+                    const FVector VelH(Self->Velocity.X, Self->Velocity.Y, 0.0f);
+                    const float Speed = VelH.Size();
+                    const float CapRef = S.Params.MaxSpeed * (1.0f + S.ABHBoost);
+                    float Gain = 0.0f;
+                    float AlongVel = 0.0f;
+                    float ViewVel = 0.0f;
+                    if (InputMag > 0.25f && Speed > CapRef) // real movement input, and over the cap
+                    {
+                        const FVector VelHN = VelH / Speed; // Speed > CapRef > 0
+                        AlongVel = FVector::DotProduct(InputV / InputMag, VelHN);  // input vs motion (ABH ~ +1)
+                        const ACharacter* Owner = Self->GetCharacterOwner();
+                        FVector ViewFwd = Owner ? Owner->GetControlRotation().Vector() : FVector::ZeroVector;
+                        ViewFwd.Z = 0.0f;
+                        ViewVel = FVector::DotProduct(ViewFwd.GetSafeNormal(), VelHN); // facing vs motion (ABH ~ -1)
+                        // ABH = driving input along your motion (AlongVel high) while facing away (ViewVel<0).
+                        if (AlongVel > S.ABHDeadzone && ViewVel < 0.0f)
+                        {
+                            Gain = FMath::Min((Speed - CapRef) * AlongVel, S.ABHMaxGain);
+                            Self->Velocity += Gain * VelHN; // accelerate along motion, horizontal only
+                        }
+                    }
+                    if (S.bDebug)
+                    {
+                        FHLDebugState& D = FHLDebugState::Get();
+                        D.ABHLastBoost = Gain;
+                        D.ABHAlongVel = AlongVel;
+                        D.ABHViewVel = ViewVel;
+                    }
+                }
                 const float HSpeed = FVector(Self->Velocity.X, Self->Velocity.Y, 0.0f).Size();
                 FHLSpeedometerData::Get().RecordJump(HSpeed);
             });
@@ -203,9 +238,6 @@ namespace HLMovementHooks
             {
                 FHLMovementSettings& S = FHLMovementSettings::Get();
                 if (!S.bEnabled || !HLIsLocalPlayerMovement(Self)) { return; }
-
-                // Keep Space free for bhop: move parachute/jetpack deploy+thrust onto Left Alt.
-                if (S.bMoveEquipOffJump) { HLMoveEquipmentBindOffJump(Self, EKeys::LeftAlt); }
 
                 // Surf integration (PM_FlyMove-style, run where the velocity we set survives UE's
                 // re-derivation): while airborne and in contact with a non-walkable ramp below us, we

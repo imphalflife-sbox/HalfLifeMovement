@@ -96,13 +96,14 @@ namespace HLSpeedometer
                 D.MoveMode, ModeName, D.CustomMode, D.bOnGround ? 1 : 0, D.bSurfing ? 1 : 0), C, DX, DY, Font); DY += HLLineHeight;
             HUD->DrawText(FString::Printf(TEXT("vel H=%.0f Vz=%.0f |v|=%.0f"),
                 FVector(D.Vel.X, D.Vel.Y, 0).Size(), D.Vel.Z, D.Vel.Size()), C, DX, DY, Font); DY += HLLineHeight;
+            HUD->DrawText(FString::Printf(TEXT("belt=%.0f onBelt=%d"),
+                D.BeltSpeed, D.bOnBelt ? 1 : 0), C, DX, DY, Font); DY += HLLineHeight;
+            HUD->DrawText(FString::Printf(TEXT("abh=%.0f along=%.2f view=%.2f"),
+                D.ABHLastBoost, D.ABHAlongVel, D.ABHViewVel), C, DX, DY, Font); DY += HLLineHeight;
             HUD->DrawText(FString::Printf(TEXT("ComputeSlideVector calls=%u nZ=%.2f walkZ=%.2f override=%d"),
                 D.CSVCalls, D.CSVNormalZ, D.CSVWalkableZ, D.bCSVWouldOverride ? 1 : 0), C, DX, DY, Font); DY += HLLineHeight;
             HUD->DrawText(FString::Printf(TEXT("SlideAlongSurface calls=%u nZ=%.2f"),
-                D.SASCalls, D.SASNormalZ), C, DX, DY, Font); DY += HLLineHeight;
-            HUD->DrawText(FString::Printf(TEXT("equip=%d chuteJetMaps=%d key=%s remaps=%u"),
-                D.EquipCount, D.ChuteJetMappings, *D.ChuteJetKeyName, D.RemapsApplied), C, DX, DY, Font); DY += HLLineHeight;
-            HUD->DrawText(FString::Printf(TEXT("equips: %s"), *D.EquipNames), C, DX, DY, Font);
+                D.SASCalls, D.SASNormalZ), C, DX, DY, Font);
         }
     }
 }

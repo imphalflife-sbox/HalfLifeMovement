@@ -35,12 +35,11 @@ struct FHLDebugState
     uint32  SASCalls = 0;          // SlideAlongSurface calls seen
     float   SASNormalZ = 0.0f;
     bool    bSurfing = false;      // TickComponent surf integration active this frame
-    // Equipment input-remap diagnostics:
-    int32   EquipCount = 0;        // active equipment count
-    FString EquipNames;            // class names of the active equipments
-    int32   ChuteJetMappings = -1; // mapping count of the chute/jet IMC (-1 = none found this frame)
-    FString ChuteJetKeyName;       // key the chute/jet's first mapping is on
-    uint32  RemapsApplied = 0;     // cumulative Space->ToKey remaps applied
+    float   BeltSpeed = 0.0f;      // |conveyor velocity| under the player (HL.ConveyorMomentum)
+    bool    bOnBelt = false;       // standing on a conveyor belt this frame
+    float   ABHLastBoost = 0.0f;   // last ABH boost magnitude applied at jump (HL.ABH)
+    float   ABHAlongVel = 0.0f;    // last ABH dot(input, velocity): input drives along motion (ABH ~ +1)
+    float   ABHViewVel = 0.0f;     // last ABH dot(view, velocity): facing vs motion (ABH ~ -1)
     static FHLDebugState& Get();
 };
 

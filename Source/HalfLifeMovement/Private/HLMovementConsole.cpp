@@ -16,10 +16,14 @@ namespace HLMovementConsole
         const FString File = HLConfigFile();
         GConfig->SetBool (HLSection, TEXT("Enabled"),                  S.bEnabled, File);
         GConfig->SetBool (HLSection, TEXT("AutoHop"),                  S.bAutoHop, File);
-        GConfig->SetBool (HLSection, TEXT("MoveEquipOffJump"),         S.bMoveEquipOffJump, File);
         GConfig->SetBool (HLSection, TEXT("MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity, File);
         GConfig->SetBool (HLSection, TEXT("SlopeLandBoost"),           S.bSlopeLandBoost, File);
         GConfig->SetBool (HLSection, TEXT("Surf"),                     S.bSurf, File);
+        GConfig->SetBool (HLSection, TEXT("ConveyorMomentum"),         S.bConveyorMomentum, File);
+        GConfig->SetBool (HLSection, TEXT("ABH"),                      S.bABH, File);
+        GConfig->SetFloat(HLSection, TEXT("ABHBoost"),                S.ABHBoost, File);
+        GConfig->SetFloat(HLSection, TEXT("ABHMaxGain"),              S.ABHMaxGain, File);
+        GConfig->SetFloat(HLSection, TEXT("ABHDeadzone"),             S.ABHDeadzone, File);
         GConfig->SetBool (HLSection, TEXT("CarryParachute"),           S.bCarryParachute, File);
         GConfig->SetBool (HLSection, TEXT("CarryJetpack"),             S.bCarryJetpack, File);
         GConfig->SetFloat(HLSection, TEXT("Accelerate"),              S.Params.Accelerate, File);
@@ -48,10 +52,14 @@ namespace HLMovementConsole
         // Each Get* leaves the value untouched (keeps the baked default) if the key isn't present.
         GConfig->GetBool (HLSection, TEXT("Enabled"),                  S.bEnabled, File);
         GConfig->GetBool (HLSection, TEXT("AutoHop"),                  S.bAutoHop, File);
-        GConfig->GetBool (HLSection, TEXT("MoveEquipOffJump"),         S.bMoveEquipOffJump, File);
         GConfig->GetBool (HLSection, TEXT("MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity, File);
         GConfig->GetBool (HLSection, TEXT("SlopeLandBoost"),           S.bSlopeLandBoost, File);
         GConfig->GetBool (HLSection, TEXT("Surf"),                     S.bSurf, File);
+        GConfig->GetBool (HLSection, TEXT("ConveyorMomentum"),         S.bConveyorMomentum, File);
+        GConfig->GetBool (HLSection, TEXT("ABH"),                      S.bABH, File);
+        GConfig->GetFloat(HLSection, TEXT("ABHBoost"),                S.ABHBoost, File);
+        GConfig->GetFloat(HLSection, TEXT("ABHMaxGain"),              S.ABHMaxGain, File);
+        GConfig->GetFloat(HLSection, TEXT("ABHDeadzone"),             S.ABHDeadzone, File);
         GConfig->GetBool (HLSection, TEXT("CarryParachute"),           S.bCarryParachute, File);
         GConfig->GetBool (HLSection, TEXT("CarryJetpack"),             S.bCarryJetpack, File);
         GConfig->GetFloat(HLSection, TEXT("Accelerate"),              S.Params.Accelerate, File);
@@ -73,8 +81,8 @@ namespace HLMovementConsole
     {
         const FHLMovementSettings& S = FHLMovementSettings::Get();
         const FString Line = FString::Printf(
-            TEXT("[HL] enabled=%d autohop=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f speedo=%d unit=%d"),
-            S.bEnabled ? 1 : 0, S.bAutoHop ? 1 : 0,
+            TEXT("[HL] enabled=%d autohop=%d conveyor=%d abh=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f speedo=%d unit=%d"),
+            S.bEnabled ? 1 : 0, S.bAutoHop ? 1 : 0, S.bConveyorMomentum ? 1 : 0, S.bABH ? 1 : 0,
             S.Params.Accelerate, S.Params.AirAccelerate, S.Params.Friction, S.Params.StopSpeed,
             S.Params.AirSpeedCap, S.Params.MaxSpeed, S.Params.SprintMaxSpeed,
             S.ParachuteDragScale, S.bSpeedometer ? 1 : 0, S.SpeedUnit);
@@ -97,9 +105,6 @@ namespace HLMovementConsole
             TEXT("HL.Enabled"), S.bEnabled, TEXT("Enable Half-Life movement (0/1)."));
         static FAutoConsoleVariableRef CVarAutoHop(
             TEXT("HL.AutoHop"), S.bAutoHop, TEXT("Hold-jump auto-bhop (0/1)."));
-        static FAutoConsoleVariableRef CVarMoveEquip(
-            TEXT("HL.MoveEquipOffJump"), S.bMoveEquipOffJump,
-            TEXT("Move parachute deploy / jetpack thrust off Space onto Left Alt so Space is pure bhop (0/1)."));
 
         static FAutoConsoleVariableRef CVarAccel(
             TEXT("HL.Accelerate"), S.Params.Accelerate, TEXT("Ground acceleration (sv_accelerate)."));
@@ -133,6 +138,21 @@ namespace HLMovementConsole
         static FAutoConsoleVariableRef CVarSurf(
             TEXT("HL.Surf"), S.bSurf,
             TEXT("1 = ride non-walkable ramps while airborne (own velocity: gravity+airaccel+clip); climb/launch up them."));
+        static FAutoConsoleVariableRef CVarConveyorMomentum(
+            TEXT("HL.ConveyorMomentum"), S.bConveyorMomentum,
+            TEXT("1 = ride conveyor belts and keep the speed (additive) when you jump/walk off; 0 = no belt push."));
+        static FAutoConsoleVariableRef CVarABH(
+            TEXT("HL.ABH"), S.bABH,
+            TEXT("1 = HL2 accelerated back hopping: turning around + holding S + bhopping gains speed."));
+        static FAutoConsoleVariableRef CVarABHBoost(
+            TEXT("HL.ABHBoost"), S.ABHBoost,
+            TEXT("Sets the ABH cap: capRef = MaxSpeed*(1+this) (default 0.5). Over capRef, back-hops accelerate."));
+        static FAutoConsoleVariableRef CVarABHMaxGain(
+            TEXT("HL.ABHMaxGain"), S.ABHMaxGain,
+            TEXT("Max horizontal speed a single ABH hop can add, cm/s (default 1000). Bounds surf launches."));
+        static FAutoConsoleVariableRef CVarABHDeadzone(
+            TEXT("HL.ABHDeadzone"), S.ABHDeadzone,
+            TEXT("Min back-press strength (-dot(input,velocity), 0..1) to engage ABH (default 0.5)."));
 
         static FAutoConsoleVariableRef CVarSpeedo(
             TEXT("HL.Speedometer"), S.bSpeedometer, TEXT("Show the speedometer (0/1)."));
