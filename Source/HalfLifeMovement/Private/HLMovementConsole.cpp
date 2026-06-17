@@ -16,6 +16,8 @@ namespace HLMovementConsole
         const FString File = HLConfigFile();
         GConfig->SetBool (HLSection, TEXT("Enabled"),                  S.bEnabled, File);
         GConfig->SetBool (HLSection, TEXT("AutoHop"),                  S.bAutoHop, File);
+        GConfig->SetBool  (HLSection, TEXT("DedicatedBhopKey"),        S.bDedicatedBhopKey, File);
+        GConfig->SetString(HLSection, TEXT("BhopKey"),                 *S.BhopKey, File);
         GConfig->SetBool (HLSection, TEXT("MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity, File);
         GConfig->SetBool (HLSection, TEXT("SlopeLandBoost"),           S.bSlopeLandBoost, File);
         GConfig->SetBool (HLSection, TEXT("Surf"),                     S.bSurf, File);
@@ -54,6 +56,8 @@ namespace HLMovementConsole
         // Each Get* leaves the value untouched (keeps the baked default) if the key isn't present.
         GConfig->GetBool (HLSection, TEXT("Enabled"),                  S.bEnabled, File);
         GConfig->GetBool (HLSection, TEXT("AutoHop"),                  S.bAutoHop, File);
+        GConfig->GetBool  (HLSection, TEXT("DedicatedBhopKey"),        S.bDedicatedBhopKey, File);
+        GConfig->GetString(HLSection, TEXT("BhopKey"),                 S.BhopKey, File);
         GConfig->GetBool (HLSection, TEXT("MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity, File);
         GConfig->GetBool (HLSection, TEXT("SlopeLandBoost"),           S.bSlopeLandBoost, File);
         GConfig->GetBool (HLSection, TEXT("Surf"),                     S.bSurf, File);
@@ -85,8 +89,9 @@ namespace HLMovementConsole
     {
         const FHLMovementSettings& S = FHLMovementSettings::Get();
         const FString Line = FString::Printf(
-            TEXT("[HL] enabled=%d autohop=%d conveyor=%d abh=%d abhMinInterval=%.2f vertFallDmg=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f speedo=%d unit=%d"),
-            S.bEnabled ? 1 : 0, S.bAutoHop ? 1 : 0, S.bConveyorMomentum ? 1 : 0, S.bABH ? 1 : 0,
+            TEXT("[HL] enabled=%d autohop=%d dedBhop=%d bhopKey=%s conveyor=%d abh=%d abhMinInterval=%.2f vertFallDmg=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f speedo=%d unit=%d"),
+            S.bEnabled ? 1 : 0, S.bAutoHop ? 1 : 0, S.bDedicatedBhopKey ? 1 : 0, *S.BhopKey,
+            S.bConveyorMomentum ? 1 : 0, S.bABH ? 1 : 0,
             S.ABHMinInterval, S.bVerticalFallDamageOnly ? 1 : 0,
             S.Params.Accelerate, S.Params.AirAccelerate, S.Params.Friction, S.Params.StopSpeed,
             S.Params.AirSpeedCap, S.Params.MaxSpeed, S.Params.SprintMaxSpeed,
@@ -110,6 +115,12 @@ namespace HLMovementConsole
             TEXT("HL.Enabled"), S.bEnabled, TEXT("Enable Half-Life movement (0/1)."));
         static FAutoConsoleVariableRef CVarAutoHop(
             TEXT("HL.AutoHop"), S.bAutoHop, TEXT("Hold-jump auto-bhop (0/1)."));
+        static FAutoConsoleVariableRef CVarDedicatedBhopKey(
+            TEXT("HL.DedicatedBhopKey"), S.bDedicatedBhopKey,
+            TEXT("1 = trigger bhop from a mod-polled key (HL.BhopKey) instead of the game Jump action, so jump-key equipment (jetpack/parachute) is never fired by bhopping. Rebind the game Jump off that key in the game menu. 0 = bhop uses the game Jump (original behavior)."));
+        static FAutoConsoleVariableRef CVarBhopKey(
+            TEXT("HL.BhopKey"), S.BhopKey,
+            TEXT("Key name polled for bhop when HL.DedicatedBhopKey=1 (default SpaceBar). e.g. SpaceBar, LeftAlt, LeftControl."));
 
         static FAutoConsoleVariableRef CVarAccel(
             TEXT("HL.Accelerate"), S.Params.Accelerate, TEXT("Ground acceleration (sv_accelerate)."));
