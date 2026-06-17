@@ -27,6 +27,17 @@ console cvars; persist them with `HL.Save`.
       the boost no longer depends on S, so strafe-turn stays available.)
 - [ ] Speedometer shows live horizontal speed + recent jump speeds, color-coded green/red.
 
+## Swimming & sharking
+- [ ] Entering deep water puts you in the swimming movement mode (`HL.Debug` `mode=`).
+- [ ] **Swim where you look**: look down+forward dives, look up+forward climbs.
+- [ ] **Ascend**: hold the bhop key → you rise.
+- [ ] **Idle sink**: release all input → you drift down; `HL.WaterSink 0` → neutral hover.
+- [ ] Swim speed ~0.8x run; `HL.WaterMaxSpeedScale` / `HL.WaterAccelerate` / `HL.WaterFriction` tune live.
+- [ ] **Sharking**: at the surface, hold the bhop key → you skip out of the water repeatedly and skim
+      the surface fast, keeping/building speed; `HL.Sharking 0` disables it.
+- [ ] **Shark-to-shore**: skimming into land continues seamlessly into a land bhop.
+- [ ] `HL.Dump` shows the swim fields; `HL.Save` persists them across a restart.
+
 ## Slopes & launches (walkable, ≤ WalkableFloorAngle)
 - [ ] Walking up a slope does **not** give free speed.
 - [ ] **Rampjump**: hit a ramp at high speed → you launch off the crest into the air.
