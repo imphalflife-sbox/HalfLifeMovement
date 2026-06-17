@@ -98,8 +98,8 @@ namespace HLSpeedometer
                 FVector(D.Vel.X, D.Vel.Y, 0).Size(), D.Vel.Z, D.Vel.Size()), C, DX, DY, Font); DY += HLLineHeight;
             HUD->DrawText(FString::Printf(TEXT("belt=%.0f onBelt=%d"),
                 D.BeltSpeed, D.bOnBelt ? 1 : 0), C, DX, DY, Font); DY += HLLineHeight;
-            HUD->DrawText(FString::Printf(TEXT("abh=%.0f along=%.2f view=%.2f"),
-                D.ABHLastBoost, D.ABHAlongVel, D.ABHViewVel), C, DX, DY, Font); DY += HLLineHeight;
+            HUD->DrawText(FString::Printf(TEXT("abh=%.0f along=%.2f view=%.2f interval=%.3f"),
+                D.ABHLastBoost, D.ABHAlongVel, D.ABHViewVel, D.ABHJumpInterval), C, DX, DY, Font); DY += HLLineHeight;
             HUD->DrawText(FString::Printf(TEXT("ComputeSlideVector calls=%u nZ=%.2f walkZ=%.2f override=%d"),
                 D.CSVCalls, D.CSVNormalZ, D.CSVWalkableZ, D.bCSVWouldOverride ? 1 : 0), C, DX, DY, Font); DY += HLLineHeight;
             HUD->DrawText(FString::Printf(TEXT("SlideAlongSurface calls=%u nZ=%.2f"),

@@ -24,6 +24,8 @@ namespace HLMovementConsole
         GConfig->SetFloat(HLSection, TEXT("ABHBoost"),                S.ABHBoost, File);
         GConfig->SetFloat(HLSection, TEXT("ABHMaxGain"),              S.ABHMaxGain, File);
         GConfig->SetFloat(HLSection, TEXT("ABHDeadzone"),             S.ABHDeadzone, File);
+        GConfig->SetFloat(HLSection, TEXT("ABHMinInterval"),         S.ABHMinInterval, File);
+        GConfig->SetBool (HLSection, TEXT("VerticalFallDamageOnly"),  S.bVerticalFallDamageOnly, File);
         GConfig->SetBool (HLSection, TEXT("CarryParachute"),           S.bCarryParachute, File);
         GConfig->SetBool (HLSection, TEXT("CarryJetpack"),             S.bCarryJetpack, File);
         GConfig->SetFloat(HLSection, TEXT("Accelerate"),              S.Params.Accelerate, File);
@@ -60,6 +62,8 @@ namespace HLMovementConsole
         GConfig->GetFloat(HLSection, TEXT("ABHBoost"),                S.ABHBoost, File);
         GConfig->GetFloat(HLSection, TEXT("ABHMaxGain"),              S.ABHMaxGain, File);
         GConfig->GetFloat(HLSection, TEXT("ABHDeadzone"),             S.ABHDeadzone, File);
+        GConfig->GetFloat(HLSection, TEXT("ABHMinInterval"),         S.ABHMinInterval, File);
+        GConfig->GetBool (HLSection, TEXT("VerticalFallDamageOnly"),  S.bVerticalFallDamageOnly, File);
         GConfig->GetBool (HLSection, TEXT("CarryParachute"),           S.bCarryParachute, File);
         GConfig->GetBool (HLSection, TEXT("CarryJetpack"),             S.bCarryJetpack, File);
         GConfig->GetFloat(HLSection, TEXT("Accelerate"),              S.Params.Accelerate, File);
@@ -81,8 +85,9 @@ namespace HLMovementConsole
     {
         const FHLMovementSettings& S = FHLMovementSettings::Get();
         const FString Line = FString::Printf(
-            TEXT("[HL] enabled=%d autohop=%d conveyor=%d abh=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f speedo=%d unit=%d"),
+            TEXT("[HL] enabled=%d autohop=%d conveyor=%d abh=%d abhMinInterval=%.2f vertFallDmg=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f speedo=%d unit=%d"),
             S.bEnabled ? 1 : 0, S.bAutoHop ? 1 : 0, S.bConveyorMomentum ? 1 : 0, S.bABH ? 1 : 0,
+            S.ABHMinInterval, S.bVerticalFallDamageOnly ? 1 : 0,
             S.Params.Accelerate, S.Params.AirAccelerate, S.Params.Friction, S.Params.StopSpeed,
             S.Params.AirSpeedCap, S.Params.MaxSpeed, S.Params.SprintMaxSpeed,
             S.ParachuteDragScale, S.bSpeedometer ? 1 : 0, S.SpeedUnit);
@@ -153,6 +158,12 @@ namespace HLMovementConsole
         static FAutoConsoleVariableRef CVarABHDeadzone(
             TEXT("HL.ABHDeadzone"), S.ABHDeadzone,
             TEXT("Min back-press strength (-dot(input,velocity), 0..1) to engage ABH (default 0.5)."));
+        static FAutoConsoleVariableRef CVarABHMinInterval(
+            TEXT("HL.ABHMinInterval"), S.ABHMinInterval,
+            TEXT("Min seconds since the previous jump to earn an ABH boost (default 0.25). Rapid auto-bhop re-jumps up a ramp have a tiny interval and earn no boost; real spaced hops do. Watch 'interval=' on HL.Debug to tune."));
+        static FAutoConsoleVariableRef CVarVerticalFallDamage(
+            TEXT("HL.VerticalFallDamageOnly"), S.bVerticalFallDamageOnly,
+            TEXT("1 = fall damage counts only vertical impact speed (ignore horizontal bhop/ABH speed); 0 = vanilla (full velocity magnitude)."));
 
         static FAutoConsoleVariableRef CVarSpeedo(
             TEXT("HL.Speedometer"), S.bSpeedometer, TEXT("Show the speedometer (0/1)."));

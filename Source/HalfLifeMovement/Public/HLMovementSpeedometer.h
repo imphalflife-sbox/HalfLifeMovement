@@ -40,6 +40,7 @@ struct FHLDebugState
     float   ABHLastBoost = 0.0f;   // last ABH boost magnitude applied at jump (HL.ABH)
     float   ABHAlongVel = 0.0f;    // last ABH dot(input, velocity): input drives along motion (ABH ~ +1)
     float   ABHViewVel = 0.0f;     // last ABH dot(view, velocity): facing vs motion (ABH ~ -1)
+    float   ABHJumpInterval = 0.0f; // seconds since the previous jump (gates the boost; tiny = rapid ramp re-jump)
     static FHLDebugState& Get();
 };
 

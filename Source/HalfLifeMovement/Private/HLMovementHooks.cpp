@@ -3,6 +3,8 @@
 #include "HLMovementSettings.h"
 #include "HLMovementSpeedometer.h"
 #include "FGCharacterMovementComponent.h"
+#include "FGCharacterBase.h"
+#include "FGCharacterPlayer.h"
 #include "Buildables/FGBuildableConveyorBelt.h"
 #include "Patching/NativeHookManager.h"
 #include "GameFramework/Character.h"
@@ -69,6 +71,23 @@ static bool    GHLApplyDesiredVelocity = false;
 // Conveyor belt velocity for the current frame, captured in the CalcVelocity before-hook and
 // re-added in the _AFTER hook (mirrors FG's mAddedVelocity layering). Local player only -> static.
 static FVector GHLBeltVelocity = FVector::ZeroVector;
+
+// ABH interval gating: the ABH boost is only earned by a jump spaced far enough from the previous
+// one. Going up a ramp, auto-bhop re-jumps with a tiny interval between hops; without this gate every
+// one of those rapid hops would take the boost and speed would run away (lethal ramp launch). We
+// measure the interval in the DoJump hook directly -- NOT by sampling MovementMode per frame, because
+// auto-bhop's own DoJump call synchronously flips MovementMode to MOVE_Falling and corrupts that
+// sampling. Singleplayer local player only -> static. Large negative seed so the first jump passes.
+static float GHLLastJumpTimeSeconds = -1000.0f;
+
+// Expose AFGCharacterBase::mFallVelocity (protected) so the Landed hook can strip its horizontal
+// component for the vertical-only fall-damage fix. A using-declaration re-exposes the protected
+// member at public access; we only ever reinterpret an existing character pointer (identical layout,
+// no added members/vtable), never instantiate this type.
+struct FHLCharFallAccess : public AFGCharacterBase
+{
+    using AFGCharacterBase::mFallVelocity;
+};
 
 namespace HLMovementHooks
 {
@@ -186,6 +205,16 @@ namespace HLMovementHooks
                 FHLMovementSettings& S = FHLMovementSettings::Get();
                 if (!S.bEnabled || !Result || !HLIsLocalPlayerMovement(Self)) { return; }
 
+                // Time since the previous jump. Auto-bhop re-jumps the instant we're grounded, so a
+                // real (flat) bhop spaces jumps by its full air arc while machine-gunning up a ramp
+                // spaces them by ~a frame. This interval is the reliable discriminator for the ABH
+                // boost (per-frame MovementMode sampling is corrupted by DoJump flipping the mode).
+                const UWorld* World = Self->GetWorld();
+                const float NowSeconds = World ? World->GetTimeSeconds() : 0.0f;
+                const float JumpInterval = NowSeconds - GHLLastJumpTimeSeconds;
+                GHLLastJumpTimeSeconds = NowSeconds;
+                if (S.bDebug) { FHLDebugState::Get().ABHJumpInterval = JumpInterval; }
+
                 // Accelerated Back Hopping. The technique: face AWAY from your travel direction
                 // (turn 180) and hold S, which drives your input TOWARD your travel direction. So ABH =
                 // input pointing ALONG your velocity while your view points AWAY from it. That facing
@@ -213,8 +242,13 @@ namespace HLMovementHooks
                         FVector ViewFwd = Owner ? Owner->GetControlRotation().Vector() : FVector::ZeroVector;
                         ViewFwd.Z = 0.0f;
                         ViewVel = FVector::DotProduct(ViewFwd.GetSafeNormal(), VelHN); // facing vs motion (ABH ~ -1)
+                        // Require this jump to be spaced from the last one. Climbing a ramp, auto-bhop
+                        // re-jumps every frame (tiny interval); without this each rapid hop would take
+                        // the boost and speed would run away until the ramp launch kills you. A real
+                        // flat/downhill bhop has a full air arc between jumps and still boosts every hop.
+                        const bool bIntervalOK = JumpInterval >= S.ABHMinInterval;
                         // ABH = driving input along your motion (AlongVel high) while facing away (ViewVel<0).
-                        if (AlongVel > S.ABHDeadzone && ViewVel < 0.0f)
+                        if (AlongVel > S.ABHDeadzone && ViewVel < 0.0f && bIntervalOK)
                         {
                             Gain = FMath::Min((Speed - CapRef) * AlongVel, S.ABHMaxGain);
                             Self->Velocity += Gain * VelHN; // accelerate along motion, horizontal only
@@ -230,6 +264,24 @@ namespace HLMovementHooks
                 }
                 const float HSpeed = FVector(Self->Velocity.X, Self->Velocity.Y, 0.0f).Size();
                 FHLSpeedometerData::Get().RecordJump(HSpeed);
+            });
+
+        // Vertical-only fall damage. FG's AFGCharacterBase::Landed feeds the MAGNITUDE of its tracked
+        // mFallVelocity into CheckFallDamage, so horizontal speed (bhop/ABH) inflates fall damage and a
+        // fast landing can kill you even from no real height. Strip the horizontal component of
+        // mFallVelocity just before Landed runs (do NOT cancel -- FG still does its landing bookkeeping
+        // and applies the now vertical-only damage). This only touches the fall-damage input, not the
+        // movement velocity, so bhop speed is preserved on landing. AFGCharacterPlayer doesn't override
+        // Landed, so the player's vtable slot is AFGCharacterBase::Landed; the CDO sample resolves it.
+        SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterBase::Landed, GetMutableDefault<AFGCharacterPlayer>(),
+            [](auto& Scope, AFGCharacterBase* Self, const FHitResult& Hit)
+            {
+                FHLMovementSettings& S = FHLMovementSettings::Get();
+                if (!S.bEnabled || !S.bVerticalFallDamageOnly || Self == nullptr) { return; }
+                if (!Self->IsPlayerControlled() || !Self->IsLocallyControlled()) { return; }
+                FVector& FallVel = static_cast<FHLCharFallAccess*>(Self)->mFallVelocity;
+                FallVel.X = 0.0f;
+                FallVel.Y = 0.0f;
             });
 
         // Per-frame: slope-landing speed redirect + hold-to-auto-bhop.

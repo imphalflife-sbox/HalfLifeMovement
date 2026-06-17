@@ -21,6 +21,8 @@ struct FHLMovementSettings
     float ABHBoost = 0.5f;                      // sets the ABH cap: capRef = MaxSpeed*(1+this); over capRef, back-hops gain
     float ABHMaxGain = 1000.0f;                 // max horizontal speed (cm/s) a single ABH hop can add (bounds surf launches)
     float ABHDeadzone = 0.5f;                   // min back-press strength (-dot(input,velocity), 0..1) to engage ABH
+    float ABHMinInterval = 0.25f;               // min seconds since the previous jump required to earn an ABH boost; rapid auto-bhop re-jumps up a ramp have a tiny interval and are filtered, real spaced hops pass (measured in the DoJump hook, immune to per-frame MovementMode sampling)
+    bool  bVerticalFallDamageOnly = true;       // fall damage uses only vertical impact speed (zeroes horizontal), so fast bhops/ABH don't die from horizontal speed on landing
     FHLMoveParams Params;            // accel/airaccel/friction/cap/maxspeed/sprintmaxspeed
     bool  bSpeedometer = true;
     bool  bSpeedometerJumpSpeeds = true;
