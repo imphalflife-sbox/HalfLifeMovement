@@ -49,8 +49,9 @@ static FVector HLComputeWishDir(const UFGCharacterMovementComponent* CMC)
 // Local-player gating is done by the callers (HLIsLocalPlayerMovement).
 static bool HLBhopHeld(const UFGCharacterMovementComponent* Self, const FHLMovementSettings& S)
 {
+    if (Self == nullptr) { return false; }
     if (!S.bDedicatedBhopKey) { return Self->mIsPressingJump; }
-    const ACharacter* Owner = Self ? Self->GetCharacterOwner() : nullptr;
+    const ACharacter* Owner = Self->GetCharacterOwner();
     const APlayerController* PC = Owner ? Cast<APlayerController>(Owner->GetController()) : nullptr;
     if (PC == nullptr) { return false; }
     FKey Key(FName(*S.BhopKey));
