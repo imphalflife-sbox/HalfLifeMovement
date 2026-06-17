@@ -208,6 +208,16 @@ namespace HLMovementHooks
                     // ceiling sits comfortably above our swim/breach speeds. (Buoyancy stays at its neutral
                     // default so gravity is cancelled underwater; our vertical wish drives up/down instead.)
                     Self->MaxSwimSpeed = 3.1f * FMath::Max(SwimSpeed, S.WaterBreachZ);
+
+                    // Sharking: near the surface with the bhop key held, breach -- set an upward velocity
+                    // (~a jump) that clears the water. Clearing it flips the engine to MOVE_Falling, where
+                    // the existing air-accel + auto-bhop already own movement (no water friction -> emergent
+                    // surface skim). Falling back in re-enters this branch and re-breaches: the shark chain.
+                    // Gated to near-surface so you can't rocket out of deep water (you must swim up first).
+                    if (S.bSharking && HLBhopHeld(Self, S) && Self->ImmersionDepth() < S.WaterBreachImmersion)
+                    {
+                        NewVel.Z = FMath::Max(NewVel.Z, S.WaterBreachZ);
+                    }
                 }
                 else // MOVE_Falling — horizontal only; gravity stays vanilla (handled in PhysFalling)
                 {
