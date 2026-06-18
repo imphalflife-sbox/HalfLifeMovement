@@ -93,3 +93,29 @@ by overriding the `UFGParachuteSettings` values at runtime — huge `mStrafeMaxS
 `mShiftStrafeMaxSpeed`, zero `mLateralToTerminalConversionRatio`, zero
 `mBrakingDeceleration`. This preserves momentum + slow descent, but horizontal accel uses
 FG's strafe model rather than true HL air-accel.
+
+### UPDATE 2026-06-18 — the secondary risk materialized; pivoted to the fallback (refined)
+
+In-game, forcing `MOVE_Falling` made the chute **instantly retract** (un-deploy animation +
+normal fall) on every deploy. Root cause: FG's deploy state machine keeps `mIsDeployed`
+**bidirectionally synced** to the movement mode, so the instant the mode leaves
+`CMM_Parachute` the chute is retracted. The "force `MOVE_Falling`" approach is therefore
+fundamentally incompatible, regardless of the visual question.
+
+**Implemented (commit `b8505db`):** the fallback, refined to keep true HL air control.
+Stay in `CMM_Parachute` (chute stays deployed) and, in the `TickComponent` _AFTER hook while
+the chute is deployed:
+- Neutralize FG's parachute clamp via the equipment's public `mParachuteSettings`
+  (`mStrafeMaxSpeed`/`mShiftStrafeMaxSpeed` → `1e6`, `mLateralToTerminalConversionRatio` → 0,
+  `mBrakingDeceleration` → 0) so `PhysParachute` moves the player at the **real** velocity
+  instead of clamping the per-frame displacement. Originals are captured on entry and
+  restored when the chute closes / the feature toggles off (the asset is shared).
+- Own the velocity post-move (surf-style): apply our **HL air-accel** to an
+  independently-tracked horizontal velocity (so FG's per-frame strafe can't run away against
+  the `1e6` cap) and write it back, with a downward-only descent cap. Horizontal momentum +
+  HL air-strafe are preserved; the `before`-hook is removed.
+
+**Caveat to verify in-game:** vertical descent is governed by `PhysParachute`'s terminal
+multiplier (FG's existing slow-fall), so `HL.ParachuteFallSpeed` only binds if FG's descent
+is faster than it. If finer descent control is wanted, map it to `mTerminalVelocityMultiplier`
+instead.
