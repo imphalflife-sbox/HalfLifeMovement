@@ -12,6 +12,8 @@ struct FHLMovementSettings
     bool  bCarryParachute = true;
     bool  bCarryJetpack = true;
     float ParachuteDragScale = 0.25f;
+    bool  bParachuteHLGlide = true;            // parachute preserves horizontal velocity + full HL air control; only the vertical descent is slowed (to ParachuteFallSpeed). Off = vanilla FG parachute (clamps horizontal to 750/1350)
+    float ParachuteFallSpeed = 400.0f;         // max downward descent speed (cm/s) while the parachute glide is active; upward velocity is never capped. Tune in-game to match the desired glide feel
     // Slope/ramp handling:
     bool  bMaintainHorizontalVelocity = false; // false: velocity follows ramps (launch off crests, no free up-slope speed)
     bool  bSlopeLandBoost = true;              // landing on a slope clips/redirects fall-speed along it (downhill gain, uphill loss)

@@ -47,6 +47,8 @@ namespace HLMovementConsole
         GConfig->SetFloat(HLSection, TEXT("MaxSpeed"),               S.Params.MaxSpeed, File);
         GConfig->SetFloat(HLSection, TEXT("SprintMaxSpeed"),         S.Params.SprintMaxSpeed, File);
         GConfig->SetFloat(HLSection, TEXT("ParachuteDragScale"),     S.ParachuteDragScale, File);
+        GConfig->SetBool (HLSection, TEXT("ParachuteHLGlide"),       S.bParachuteHLGlide, File);
+        GConfig->SetFloat(HLSection, TEXT("ParachuteFallSpeed"),     S.ParachuteFallSpeed, File);
         GConfig->SetFloat(HLSection, TEXT("SlopeGravityScale"),      S.SlopeGravityScale, File);
         GConfig->SetFloat(HLSection, TEXT("WalkableFloorAngle"),     S.WalkableFloorAngle, File);
         GConfig->SetBool (HLSection, TEXT("Speedometer"),            S.bSpeedometer, File);
@@ -96,6 +98,8 @@ namespace HLMovementConsole
         GConfig->GetFloat(HLSection, TEXT("MaxSpeed"),               S.Params.MaxSpeed, File);
         GConfig->GetFloat(HLSection, TEXT("SprintMaxSpeed"),         S.Params.SprintMaxSpeed, File);
         GConfig->GetFloat(HLSection, TEXT("ParachuteDragScale"),     S.ParachuteDragScale, File);
+        GConfig->GetBool (HLSection, TEXT("ParachuteHLGlide"),       S.bParachuteHLGlide, File);
+        GConfig->GetFloat(HLSection, TEXT("ParachuteFallSpeed"),     S.ParachuteFallSpeed, File);
         GConfig->GetFloat(HLSection, TEXT("SlopeGravityScale"),      S.SlopeGravityScale, File);
         GConfig->GetFloat(HLSection, TEXT("WalkableFloorAngle"),     S.WalkableFloorAngle, File);
         GConfig->GetBool (HLSection, TEXT("Speedometer"),            S.bSpeedometer, File);
@@ -107,13 +111,13 @@ namespace HLMovementConsole
     {
         const FHLMovementSettings& S = FHLMovementSettings::Get();
         const FString Line = FString::Printf(
-            TEXT("[HL] enabled=%d autohop=%d dedBhop=%d bhopKey=%s conveyor=%d abh=%d abhMinInterval=%.2f vertFallDmg=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f speedo=%d unit=%d | swim=%d shark=%d waterScale=%.2f waterAccel=%.1f waterFric=%.1f sink=%d sinkSpd=%.0f breachZ=%.0f breachImm=%.2f"),
+            TEXT("[HL] enabled=%d autohop=%d dedBhop=%d bhopKey=%s conveyor=%d abh=%d abhMinInterval=%.2f vertFallDmg=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f paraGlide=%d paraFall=%.0f speedo=%d unit=%d | swim=%d shark=%d waterScale=%.2f waterAccel=%.1f waterFric=%.1f sink=%d sinkSpd=%.0f breachZ=%.0f breachImm=%.2f"),
             S.bEnabled ? 1 : 0, S.bAutoHop ? 1 : 0, S.bDedicatedBhopKey ? 1 : 0, *S.BhopKey,
             S.bConveyorMomentum ? 1 : 0, S.bABH ? 1 : 0,
             S.ABHMinInterval, S.bVerticalFallDamageOnly ? 1 : 0,
             S.Params.Accelerate, S.Params.AirAccelerate, S.Params.Friction, S.Params.StopSpeed,
             S.Params.AirSpeedCap, S.Params.MaxSpeed, S.Params.SprintMaxSpeed,
-            S.ParachuteDragScale, S.bSpeedometer ? 1 : 0, S.SpeedUnit,
+            S.ParachuteDragScale, S.bParachuteHLGlide ? 1 : 0, S.ParachuteFallSpeed, S.bSpeedometer ? 1 : 0, S.SpeedUnit,
             S.bSwim ? 1 : 0, S.bSharking ? 1 : 0, S.WaterMaxSpeedScale, S.WaterAccelerate,
             S.WaterFriction, S.bWaterSink ? 1 : 0, S.WaterSinkSpeed, S.WaterBreachZ, S.WaterBreachImmersion);
 
@@ -158,6 +162,12 @@ namespace HLMovementConsole
             TEXT("HL.SprintMaxSpeed"), S.Params.SprintMaxSpeed, TEXT("Sprint max speed, cm/s."));
         static FAutoConsoleVariableRef CVarParachuteDrag(
             TEXT("HL.ParachuteDragScale"), S.ParachuteDragScale, TEXT("Parachute horizontal drag scale (lower = glides further)."));
+        static FAutoConsoleVariableRef CVarParachuteHLGlide(
+            TEXT("HL.ParachuteHLGlide"), S.bParachuteHLGlide,
+            TEXT("1 = deployed parachute preserves horizontal velocity + full HL air control, slowing only the vertical descent (to HL.ParachuteFallSpeed); 0 = vanilla FG parachute (clamps horizontal to 750/1350)."));
+        static FAutoConsoleVariableRef CVarParachuteFallSpeed(
+            TEXT("HL.ParachuteFallSpeed"), S.ParachuteFallSpeed,
+            TEXT("Max downward descent speed while HL.ParachuteHLGlide is active, cm/s (default 400). Upward velocity is never capped."));
 
         static FAutoConsoleVariableRef CVarMaintainHorizVel(
             TEXT("HL.MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity,
