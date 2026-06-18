@@ -458,7 +458,10 @@ namespace HLMovementHooks
                     static bool    bParaOverride = false;
                     static FVector ParaVelH = FVector::ZeroVector; // our independently-tracked horizontal (Z unused)
                     static UFGParachuteSettings* SavedPS = nullptr;
-                    static float SavedStrafe = 0.0f, SavedShiftStrafe = 0.0f, SavedLateralConv = 0.0f, SavedBraking = 0.0f;
+                    static float SavedStrafe = 0.0f;
+                    static float SavedShiftStrafe = 0.0f;
+                    static float SavedLateralConv = 0.0f;
+                    static float SavedBraking = 0.0f;
 
                     AFGParachute* Chute = S.bParachuteHLGlide ? HLGetDeployedParachute(Self) : nullptr;
                     UFGParachuteSettings* PS = Chute ? Chute->mParachuteSettings.Get() : nullptr;
