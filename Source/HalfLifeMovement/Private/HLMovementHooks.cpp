@@ -75,9 +75,9 @@ static FVector HLGetConveyorBaseVelocity(UFGCharacterMovementComponent* Self)
 }
 
 // Returns the local player's parachute equipment iff it is currently DEPLOYED, else nullptr.
-// Detection uses the equipment's replicated deployed flag (AFGParachute::IsDeployed) rather than the
-// movement mode, because the glide forces the mode off CMM_Parachute -- so IsParachuting() would read
-// false even while the chute is open. The chute is in the ES_BACK equipment slot.
+// Detection uses the equipment's replicated deployed flag (AFGParachute::IsDeployed); the glide stays
+// in CMM_Parachute (so the chute model/anim and FG's deploy state machine are left intact) and the
+// returned equipment also gives us its mParachuteSettings to tame. The chute is in the ES_BACK slot.
 static AFGParachute* HLGetDeployedParachute(UFGCharacterMovementComponent* Self)
 {
     AFGCharacterPlayer* Char = Self ? Cast<AFGCharacterPlayer>(Self->GetCharacterOwner()) : nullptr;
@@ -358,25 +358,6 @@ namespace HLMovementHooks
                 FallVel.Y = 0.0f;
             });
 
-        // Parachute HL glide: while the chute is DEPLOYED, take horizontal control away from FG's
-        // PhysParachute (it clamps horizontal speed to 750/1350 and converts lateral speed into fall
-        // speed) by forcing MOVE_Falling BEFORE the movement tick runs its physics. The engine then
-        // runs normal falling physics, so our CalcVelocity hook owns X/Y with the full HL air model
-        // (air-strafe/ABH), and the TickComponent _AFTER hook caps only the descent. We force it in a
-        // before-hook (not after) so the mode is already Falling when physics runs this same frame --
-        // robust even if FG re-asserts CMM_Parachute each frame. The chute model/anim is driven by the
-        // equipment deployed flag, not the movement mode, so it stays visible. Local player only.
-        SUBSCRIBE_METHOD_VIRTUAL(UFGCharacterMovementComponent::TickComponent, Sample,
-            [](auto& Scope, UFGCharacterMovementComponent* Self, float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-            {
-                FHLMovementSettings& S = FHLMovementSettings::Get();
-                if (!S.bEnabled || !S.bParachuteHLGlide || !HLIsLocalPlayerMovement(Self)) { return; }
-                if (HLGetDeployedParachute(Self) != nullptr)
-                {
-                    Self->SetMovementMode(MOVE_Falling);
-                }
-            });
-
         // Per-frame: slope-landing speed redirect + hold-to-auto-bhop.
         SUBSCRIBE_METHOD_VIRTUAL_AFTER(UFGCharacterMovementComponent::TickComponent, Sample,
             [](UFGCharacterMovementComponent* Self, float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -459,15 +440,68 @@ namespace HLMovementHooks
                 }
                 bWasBhopHeld = bBhopHeld;
 
-                // Parachute HL glide: cap ONLY the downward descent. Horizontal velocity is owned by the
-                // HL air model (CalcVelocity) because the before-hook forced MOVE_Falling, so it is left
-                // untouched here. Upward velocity (e.g. a ramp/slope-land boost landed mid-glide) is
-                // preserved -- we clamp only when descending faster than ParachuteFallSpeed.
-                if (S.bParachuteHLGlide && HLGetDeployedParachute(Self) != nullptr)
+                // Parachute HL glide. We do NOT change the movement mode: forcing MOVE_Falling makes
+                // FG's deploy state machine instantly retract the chute (it keeps mIsDeployed synced to
+                // CMM_Parachute). Instead we stay in CMM_Parachute (chute stays visible) and tame the
+                // parachute from inside its own mode:
+                //   (a) Neutralize FG's horizontal handling via the equipment's (public) settings asset
+                //       -- huge strafe caps + zero lateral->fall conversion + zero braking -- so
+                //       PhysParachute MOVES the player at the real velocity instead of clamping it to
+                //       750/1350, bleeding it, or turning speed into fall speed. (Without this, the
+                //       per-frame displacement is clamped no matter what velocity we set afterward.)
+                //   (b) Own the velocity here, post-move: HL air-accel on X/Y (momentum + air-strafe)
+                //       and a downward-only descent cap. This survives into the next PhysParachute the
+                //       same way the surf integration's velocity does.
+                // The settings asset is shared, so we capture the originals on entry and restore them
+                // when the chute closes (or the feature is toggled off) -- never leave it altered.
                 {
-                    if (Self->Velocity.Z < -S.ParachuteFallSpeed)
+                    static bool    bParaOverride = false;
+                    static FVector ParaVelH = FVector::ZeroVector; // our independently-tracked horizontal (Z unused)
+                    static UFGParachuteSettings* SavedPS = nullptr;
+                    static float SavedStrafe = 0.0f, SavedShiftStrafe = 0.0f, SavedLateralConv = 0.0f, SavedBraking = 0.0f;
+
+                    AFGParachute* Chute = S.bParachuteHLGlide ? HLGetDeployedParachute(Self) : nullptr;
+                    UFGParachuteSettings* PS = Chute ? Chute->mParachuteSettings.Get() : nullptr;
+                    if (PS != nullptr)
                     {
-                        Self->Velocity.Z = -S.ParachuteFallSpeed;
+                        if (!bParaOverride || SavedPS != PS)
+                        {
+                            SavedPS = PS;
+                            SavedStrafe = PS->mStrafeMaxSpeed;
+                            SavedShiftStrafe = PS->mShiftStrafeMaxSpeed;
+                            SavedLateralConv = PS->mLateralToTerminalConversionRatio;
+                            SavedBraking = PS->mBrakingDeceleration;
+                            ParaVelH = FVector(Self->Velocity.X, Self->Velocity.Y, 0.0f); // seed from incoming momentum
+                            bParaOverride = true;
+                        }
+                        PS->mStrafeMaxSpeed = 1.0e6f;
+                        PS->mShiftStrafeMaxSpeed = 1.0e6f;
+                        PS->mLateralToTerminalConversionRatio = 0.0f;
+                        PS->mBrakingDeceleration = 0.0f;
+
+                        // Own horizontal via OUR HL air model on the tracked velocity (discarding FG's
+                        // per-frame strafe so a 1e6 cap can't run away); keep PhysParachute's slowed
+                        // descent for Z, capped downward to ParachuteFallSpeed.
+                        const FVector WishDir = HLComputeWishDir(Self);
+                        const float WishSpeed = Self->GetIsSprinting() ? S.Params.SprintMaxSpeed : S.Params.MaxSpeed;
+                        const FVector H = HLMovementCore::AirAccelerate(ParaVelH, WishDir, WishSpeed,
+                            S.Params.AirSpeedCap, S.Params.AirAccelerate, DeltaTime);
+                        ParaVelH = FVector(H.X, H.Y, 0.0f);
+                        float Vz = Self->Velocity.Z;
+                        if (Vz < -S.ParachuteFallSpeed) { Vz = -S.ParachuteFallSpeed; } // slow descent only
+                        Self->Velocity = FVector(ParaVelH.X, ParaVelH.Y, Vz);
+                    }
+                    else if (bParaOverride)
+                    {
+                        if (SavedPS != nullptr)
+                        {
+                            SavedPS->mStrafeMaxSpeed = SavedStrafe;
+                            SavedPS->mShiftStrafeMaxSpeed = SavedShiftStrafe;
+                            SavedPS->mLateralToTerminalConversionRatio = SavedLateralConv;
+                            SavedPS->mBrakingDeceleration = SavedBraking;
+                        }
+                        bParaOverride = false;
+                        SavedPS = nullptr;
                     }
                 }
 
