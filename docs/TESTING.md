@@ -51,9 +51,17 @@ console cvars; persist them with `HL.Save`.
 - [ ] Ride up and **launch off the top**, traveling along your last-contact direction.
 - [ ] Speed holds on the ramp (bleeds only to gravity going up).
 
-## Parachute / jetpack momentum carry
-- [ ] Build speed (surf/bhop), deploy the **parachute** → horizontal momentum carries; you glide
-      far instead of stopping. `HL.ParachuteDragScale` tunes how fast it bleeds (lower = glide further).
+## Parachute HL glide
+- [ ] Build speed past 1350 (surf/bhop/ABH), deploy the **parachute** mid-air → the chute **stays
+      deployed** and horizontal speed is **preserved** (not clamped to 750/1350); shift no longer
+      changes a horizontal cap.
+- [ ] While gliding you can **air-strafe** (HL air control) to steer/build speed; with no input the
+      horizontal speed holds.
+- [ ] Descent is slowed (FG's parachute slow-fall). `HL.ParachuteFallSpeed` caps downward speed
+      *only if* it's lower than FG's slow-fall (otherwise FG's terminal multiplier governs descent).
+- [ ] Upward velocity (e.g. landing a ramp/surf launch mid-glide) is **not** capped.
+- [ ] `HL.ParachuteHLGlide 0` → vanilla parachute (re-clamps to 750/1350); `1` → glide. Closing the
+      chute restores vanilla behavior (the temporary parachute-settings override is reverted).
 - [ ] Build speed, use the **jetpack** → horizontal momentum is retained while thrusting.
 
 ## Persistence / config
@@ -71,8 +79,8 @@ console cvars; persist them with `HL.Save`.
 ## Full cvar reference
 `HL.Enabled HL.AutoHop HL.Accelerate HL.AirAccelerate HL.Friction HL.StopSpeed HL.AirSpeedCap
 HL.MaxSpeed HL.SprintMaxSpeed HL.MaintainHorizontalVelocity HL.SlopeLandBoost HL.SlopeGravity
-HL.WalkableFloorAngle HL.Surf HL.ParachuteDragScale HL.Speedometer HL.SpeedometerJumps
-HL.SpeedUnit HL.Debug HL.Dump HL.Save`
+HL.WalkableFloorAngle HL.Surf HL.ParachuteHLGlide HL.ParachuteFallSpeed HL.ParachuteDragScale
+HL.Speedometer HL.SpeedometerJumps HL.SpeedUnit HL.Debug HL.Dump HL.Save`
 
 ---
 
