@@ -371,7 +371,7 @@ namespace HLMovementHooks
             {
                 FHLMovementSettings& S = FHLMovementSettings::Get();
                 if (!S.bEnabled || !S.bParachuteHLGlide || !HLIsLocalPlayerMovement(Self)) { return; }
-                if (Self->IsParachuting() && HLGetDeployedParachute(Self) != nullptr)
+                if (HLGetDeployedParachute(Self) != nullptr)
                 {
                     Self->SetMovementMode(MOVE_Falling);
                 }
