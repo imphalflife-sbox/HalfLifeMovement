@@ -5,6 +5,7 @@
 #include "FGCharacterMovementComponent.h"
 #include "FGCharacterBase.h"
 #include "FGCharacterPlayer.h"
+#include "Equipment/FGParachute.h"
 #include "Buildables/FGBuildableConveyorBelt.h"
 #include "Patching/NativeHookManager.h"
 #include "GameFramework/Character.h"
@@ -71,6 +72,18 @@ static FVector HLGetConveyorBaseVelocity(UFGCharacterMovementComponent* Self)
     AFGBuildableConveyorBelt* Belt = Cast<AFGBuildableConveyorBelt>(Self->CurrentFloor.HitResult.GetActor());
     if (Belt == nullptr) { return FVector::ZeroVector; }
     return Belt->GetVelocityForBase(Self->GetOwner(), Self->CurrentFloor.HitResult.GetComponent());
+}
+
+// Returns the local player's parachute equipment iff it is currently DEPLOYED, else nullptr.
+// Detection uses the equipment's replicated deployed flag (AFGParachute::IsDeployed) rather than the
+// movement mode, because the glide forces the mode off CMM_Parachute -- so IsParachuting() would read
+// false even while the chute is open. The chute is in the ES_BACK equipment slot.
+static AFGParachute* HLGetDeployedParachute(UFGCharacterMovementComponent* Self)
+{
+    AFGCharacterPlayer* Char = Self ? Cast<AFGCharacterPlayer>(Self->GetCharacterOwner()) : nullptr;
+    if (Char == nullptr) { return nullptr; }
+    AFGParachute* Chute = Cast<AFGParachute>(Char->GetEquipmentInSlot(EEquipmentSlot::ES_BACK));
+    return (Chute != nullptr && Chute->IsDeployed()) ? Chute : nullptr;
 }
 
 // Surf: the TickComponent (post-move) hook maintains the player's velocity while in contact with a
@@ -345,6 +358,25 @@ namespace HLMovementHooks
                 FallVel.Y = 0.0f;
             });
 
+        // Parachute HL glide: while the chute is DEPLOYED, take horizontal control away from FG's
+        // PhysParachute (it clamps horizontal speed to 750/1350 and converts lateral speed into fall
+        // speed) by forcing MOVE_Falling BEFORE the movement tick runs its physics. The engine then
+        // runs normal falling physics, so our CalcVelocity hook owns X/Y with the full HL air model
+        // (air-strafe/ABH), and the TickComponent _AFTER hook caps only the descent. We force it in a
+        // before-hook (not after) so the mode is already Falling when physics runs this same frame --
+        // robust even if FG re-asserts CMM_Parachute each frame. The chute model/anim is driven by the
+        // equipment deployed flag, not the movement mode, so it stays visible. Local player only.
+        SUBSCRIBE_METHOD_VIRTUAL(UFGCharacterMovementComponent::TickComponent, Sample,
+            [](auto& Scope, UFGCharacterMovementComponent* Self, float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+            {
+                FHLMovementSettings& S = FHLMovementSettings::Get();
+                if (!S.bEnabled || !S.bParachuteHLGlide || !HLIsLocalPlayerMovement(Self)) { return; }
+                if (Self->IsParachuting() && HLGetDeployedParachute(Self) != nullptr)
+                {
+                    Self->SetMovementMode(MOVE_Falling);
+                }
+            });
+
         // Per-frame: slope-landing speed redirect + hold-to-auto-bhop.
         SUBSCRIBE_METHOD_VIRTUAL_AFTER(UFGCharacterMovementComponent::TickComponent, Sample,
             [](UFGCharacterMovementComponent* Self, float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -426,6 +458,18 @@ namespace HLMovementHooks
                     Self->DoJump(false);
                 }
                 bWasBhopHeld = bBhopHeld;
+
+                // Parachute HL glide: cap ONLY the downward descent. Horizontal velocity is owned by the
+                // HL air model (CalcVelocity) because the before-hook forced MOVE_Falling, so it is left
+                // untouched here. Upward velocity (e.g. a ramp/slope-land boost landed mid-glide) is
+                // preserved -- we clamp only when descending faster than ParachuteFallSpeed.
+                if (S.bParachuteHLGlide && HLGetDeployedParachute(Self) != nullptr)
+                {
+                    if (Self->Velocity.Z < -S.ParachuteFallSpeed)
+                    {
+                        Self->Velocity.Z = -S.ParachuteFallSpeed;
+                    }
+                }
 
                 LastMode = Self->MovementMode;
                 LastVelocity = Self->Velocity;
