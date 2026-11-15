@@ -2,7 +2,7 @@
 
 # Half-Life Movement
 
-A singleplayer Satisfactory mod that replaces base ground and air movement with a
+A Satisfactory mod that replaces base ground and air movement with a
 GoldSrc (Half-Life 1) style model: ground acceleration and friction, air-strafing, and
 momentum-preserving bunnyhopping.
 
@@ -18,7 +18,7 @@ momentum-preserving bunnyhopping.
 - Speedometer HUD with live horizontal speed and color-coded per-jump deltas
 - Every setting is live-tunable and can be saved
 
-Singleplayer only. Multiplayer is out of scope.
+Multiplayer support: TBD.
 
 ## Requirements
 
