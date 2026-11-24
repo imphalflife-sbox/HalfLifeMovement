@@ -112,6 +112,11 @@ static FVector GHLBeltVelocity = FVector::ZeroVector;
 // sampling. Singleplayer local player only -> static. Large negative seed so the first jump passes.
 static float GHLLastJumpTimeSeconds = -1000.0f;
 
+// Jump footstep (HL.JumpSound): which foot index plays next (alternates 0/1 like HL's step sounds), and
+// the min spacing between jump steps so frame-by-frame auto-bhop re-jumps up a ramp don't spam audio.
+static int32 GHLJumpSoundFoot = 0;
+static constexpr float HLJumpSoundMinInterval = 0.1f;
+
 // Expose AFGCharacterBase::mFallVelocity (protected) so the Landed hook can strip its horizontal
 // component for the vertical-only fall-damage fix. A using-declaration re-exposes the protected
 // member at public access; we only ever reinterpret an existing character pointer (identical layout,
@@ -338,6 +343,20 @@ namespace HLMovementHooks
                 }
                 const float HSpeed = FVector(Self->Velocity.X, Self->Velocity.Y, 0.0f).Size();
                 FHLSpeedometerData::Get().RecordJump(HSpeed);
+
+                // HL1-style takeoff footstep. FG's footsteps come from foot-down anim notifies in the run
+                // cycle; a bhop is grounded for 0-1 frames so no notify ever fires and hopping is silent.
+                // Play FG's own (surface-aware, Wwise) footstep effect once per jump, alternating feet like
+                // HL. Skip near-instant re-jumps (auto-bhop machine-gunning up a ramp re-jumps every frame)
+                // so it can't spam a step per frame.
+                if (S.bJumpSound && JumpInterval >= HLJumpSoundMinInterval)
+                {
+                    if (AFGCharacterBase* Char = Cast<AFGCharacterBase>(Self->GetCharacterOwner()))
+                    {
+                        Char->PlayFootstepEffect(GHLJumpSoundFoot, true);
+                        GHLJumpSoundFoot ^= 1;
+                    }
+                }
             });
 
         // Vertical-only fall damage. FG's AFGCharacterBase::Landed feeds the MAGNITUDE of its tracked
