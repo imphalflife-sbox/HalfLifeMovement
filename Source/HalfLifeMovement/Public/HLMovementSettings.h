@@ -27,7 +27,8 @@ struct FHLMovementSettings
     float ABHDeadzone = 0.5f;                   // min facing-away strength (-dot(view,velocity), 0..1) to engage ABH; geometric like HL2, NO movement key required (so you can hold A/D to air-strafe-turn during ABH)
     float ABHMinInterval = 0.25f;               // min seconds since the previous jump required to earn an ABH boost; rapid auto-bhop re-jumps up a ramp have a tiny interval and are filtered, real spaced hops pass (measured in the DoJump hook, immune to per-frame MovementMode sampling)
     bool  bJumpSound = true;                    // play one footstep (surface-aware, FG's own footstep effect) on every jump, like HL1; otherwise bhopping is near-silent because the walk anim never reaches a foot-down notify
-    bool  bVerticalFallDamageOnly = true;       // fall damage uses only vertical impact speed (zeroes horizontal), so fast bhops/ABH don't die from horizontal speed on landing
+    bool  bVerticalFallDamageOnly = true;      // fall damage uses only vertical impact speed (zeroes horizontal), so fast bhops/ABH don't die from horizontal speed on landing
+    bool  bSurfNoFallDamage = true;             // surf launches turn horizontal speed into vertical (ClipVelocity up the ramp), which VerticalFallDamageOnly can't strip; exempt the whole landing if its airborne arc touched a surf ramp
     // Swimming (HL PM_WaterMove) + sharking. Speeds in cm/s. See docs/superpowers/specs/2026-06-17-swimming-design.md.
     bool  bSwim = true;                          // HL water movement (swim where you look, jump=ascend, idle=sink)
     bool  bSharking = true;                      // surface breach: hold the bhop key at the surface to skip out of the water

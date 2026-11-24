@@ -29,6 +29,7 @@ namespace HLMovementConsole
         GConfig->SetFloat(HLSection, TEXT("ABHMinInterval"),         S.ABHMinInterval, File);
         GConfig->SetBool (HLSection, TEXT("JumpSound"),               S.bJumpSound, File);
         GConfig->SetBool (HLSection, TEXT("VerticalFallDamageOnly"),  S.bVerticalFallDamageOnly, File);
+        GConfig->SetBool (HLSection, TEXT("SurfNoFallDamage"),        S.bSurfNoFallDamage, File);
         GConfig->SetBool (HLSection, TEXT("Swim"),                     S.bSwim, File);
         GConfig->SetBool (HLSection, TEXT("Sharking"),                 S.bSharking, File);
         GConfig->SetFloat(HLSection, TEXT("WaterMaxSpeedScale"),       S.WaterMaxSpeedScale, File);
@@ -81,6 +82,7 @@ namespace HLMovementConsole
         GConfig->GetFloat(HLSection, TEXT("ABHMinInterval"),         S.ABHMinInterval, File);
         GConfig->GetBool (HLSection, TEXT("JumpSound"),               S.bJumpSound, File);
         GConfig->GetBool (HLSection, TEXT("VerticalFallDamageOnly"),  S.bVerticalFallDamageOnly, File);
+        GConfig->GetBool (HLSection, TEXT("SurfNoFallDamage"),        S.bSurfNoFallDamage, File);
         GConfig->GetBool (HLSection, TEXT("Swim"),                     S.bSwim, File);
         GConfig->GetBool (HLSection, TEXT("Sharking"),                 S.bSharking, File);
         GConfig->GetFloat(HLSection, TEXT("WaterMaxSpeedScale"),       S.WaterMaxSpeedScale, File);
@@ -113,10 +115,10 @@ namespace HLMovementConsole
     {
         const FHLMovementSettings& S = FHLMovementSettings::Get();
         const FString Line = FString::Printf(
-            TEXT("[HL] enabled=%d autohop=%d dedBhop=%d bhopKey=%s conveyor=%d abh=%d abhMinInterval=%.2f jumpSound=%d vertFallDmg=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f paraGlide=%d paraFall=%.0f speedo=%d unit=%d | swim=%d shark=%d waterScale=%.2f waterAccel=%.1f waterFric=%.1f sink=%d sinkSpd=%.0f breachZ=%.0f breachImm=%.2f"),
+            TEXT("[HL] enabled=%d autohop=%d dedBhop=%d bhopKey=%s conveyor=%d abh=%d abhMinInterval=%.2f jumpSound=%d vertFallDmg=%d surfNoFallDmg=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f paraGlide=%d paraFall=%.0f speedo=%d unit=%d | swim=%d shark=%d waterScale=%.2f waterAccel=%.1f waterFric=%.1f sink=%d sinkSpd=%.0f breachZ=%.0f breachImm=%.2f"),
             S.bEnabled ? 1 : 0, S.bAutoHop ? 1 : 0, S.bDedicatedBhopKey ? 1 : 0, *S.BhopKey,
             S.bConveyorMomentum ? 1 : 0, S.bABH ? 1 : 0,
-            S.ABHMinInterval, S.bJumpSound ? 1 : 0, S.bVerticalFallDamageOnly ? 1 : 0,
+            S.ABHMinInterval, S.bJumpSound ? 1 : 0, S.bVerticalFallDamageOnly ? 1 : 0, S.bSurfNoFallDamage ? 1 : 0,
             S.Params.Accelerate, S.Params.AirAccelerate, S.Params.Friction, S.Params.StopSpeed,
             S.Params.AirSpeedCap, S.Params.MaxSpeed, S.Params.SprintMaxSpeed,
             S.ParachuteDragScale, S.bParachuteHLGlide ? 1 : 0, S.ParachuteFallSpeed, S.bSpeedometer ? 1 : 0, S.SpeedUnit,
@@ -210,6 +212,9 @@ namespace HLMovementConsole
         static FAutoConsoleVariableRef CVarVerticalFallDamage(
             TEXT("HL.VerticalFallDamageOnly"), S.bVerticalFallDamageOnly,
             TEXT("1 = fall damage counts only vertical impact speed (ignore horizontal bhop/ABH speed); 0 = vanilla (full velocity magnitude)."));
+        static FAutoConsoleVariableRef CVarSurfNoFallDamage(
+            TEXT("HL.SurfNoFallDamage"), S.bSurfNoFallDamage,
+            TEXT("1 = a landing whose airborne arc touched a surf ramp deals no fall damage (surf rotates horizontal speed into vertical, which VerticalFallDamageOnly can't strip); 0 = surf launches take fall damage."));
 
         static FAutoConsoleVariableRef CVarSwim(
             TEXT("HL.Swim"), S.bSwim,

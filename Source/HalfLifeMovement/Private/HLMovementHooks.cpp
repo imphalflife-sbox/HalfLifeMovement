@@ -92,6 +92,13 @@ static AFGParachute* HLGetDeployedParachute(UFGCharacterMovementComponent* Self)
 // so CalcVelocity can skip its own air-accel during surf (the integration owns velocity then).
 static bool GHLWasSurfing = false;
 
+// True once the current airborne arc has touched a surf ramp. A surf launch rotates horizontal speed
+// into genuine vertical speed (ClipVelocity up the ramp), which the vertical-only fall-damage strip
+// cannot remove -- the damaging speed IS the Z. We remember the arc touched surf and let the Landed
+// hook consume this flag to exempt the whole landing from fall damage. Set in the surf integration,
+// cleared at the next Landed. Singleplayer local player only -> static is fine.
+static bool GHLSurfLaunchActive = false;
+
 // CalcVelocity computes the HL velocity from the PRE-call velocity and stashes it here; the
 // CalcVelocity _AFTER hook applies it once vanilla FG CalcVelocity has run. We let FG's override run
 // (instead of Cancel()-ing it) so its land/anim bookkeeping -- the pre-land prediction that drives the
@@ -370,11 +377,29 @@ namespace HLMovementHooks
             [](auto& Scope, AFGCharacterBase* Self, const FHitResult& Hit)
             {
                 FHLMovementSettings& S = FHLMovementSettings::Get();
-                if (!S.bEnabled || !S.bVerticalFallDamageOnly || Self == nullptr) { return; }
+                if (!S.bEnabled || Self == nullptr) { return; }
                 if (!Self->IsPlayerControlled() || !Self->IsLocallyControlled()) { return; }
                 FVector& FallVel = static_cast<FHLCharFallAccess*>(Self)->mFallVelocity;
-                FallVel.X = 0.0f;
-                FallVel.Y = 0.0f;
+
+                // Surf-launch exemption. A surf launch rotates horizontal speed into vertical (ClipVelocity
+                // up the ramp), so the vertical-only strip below can't protect it -- the damaging speed is
+                // now in Z. If the airborne arc we're landing from touched a surf ramp, treat it like a
+                // bhop: zero the whole fall velocity so the mod-controlled launch never deals fall damage.
+                // Consume the flag regardless of the toggle so it can't go stale across landings.
+                const bool bWasSurfLaunch = GHLSurfLaunchActive;
+                GHLSurfLaunchActive = false;
+                if (S.bSurfNoFallDamage && bWasSurfLaunch)
+                {
+                    FallVel = FVector::ZeroVector;
+                    return;
+                }
+
+                // Vertical-only fall damage: strip horizontal so fast bhop/ABH landings don't inflate it.
+                if (S.bVerticalFallDamageOnly)
+                {
+                    FallVel.X = 0.0f;
+                    FallVel.Y = 0.0f;
+                }
             });
 
         // Per-frame: slope-landing speed redirect + hold-to-auto-bhop.
@@ -423,6 +448,16 @@ namespace HLMovementHooks
                     }
                     if (GHLWasSurfing && !bSurfingNow) { Self->Velocity = SurfVel; } // launch off the ramp carrying the surf velocity
                     GHLWasSurfing = bSurfingNow;
+                    // Mark the airborne arc as a surf launch so its eventual landing is exempt from fall
+                    // damage (the launch turns horizontal speed into vertical, which the vertical-only
+                    // strip can't cover). Sticky until the next Landed consumes it.
+                    if (bSurfingNow) { GHLSurfLaunchActive = true; }
+                    // Safety: once we're back on the ground (and not surfing) the launch arc is over. Landed
+                    // normally consumes the flag, but landing in water flips to MOVE_Swimming without firing
+                    // Landed, which would leave the flag stale and wrongly exempt a later landing. Clear here
+                    // too. (Landed runs inside Super::TickComponent, before this _AFTER hook, so a real
+                    // surf-landing has already consumed the flag by the time we get here.)
+                    else if (Self->IsMovingOnGround()) { GHLSurfLaunchActive = false; }
 
                     if (S.bDebug) { FHLDebugState::Get().bSurfing = bSurfingNow; }
                 }
