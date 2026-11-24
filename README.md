@@ -20,7 +20,10 @@ momentum-preserving bunnyhopping.
 - Speedometer HUD with live horizontal speed and color-coded per-jump deltas (off by default)
 - Every setting is live-tunable and can be saved
 
-Multiplayer support: TBD.
+**Multiplayer:** the mod is client-side and not required on the server. It works in singleplayer
+and for the host of a multiplayer game. When you join someone else's game your movement stays
+vanilla, because the server is in charge of movement there. You can still join servers and
+players who don't have the mod.
 
 ## Requirements
 

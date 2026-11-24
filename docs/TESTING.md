@@ -69,6 +69,23 @@ console cvars; persist them with `HL.Save`.
       the value persists (check with `HL.Dump`).
 - [ ] `HL.Dump` prints current values to the log / on-screen.
 
+## Off really means vanilla
+- [ ] Open the parachute, glide, then `HL.Enabled 0` mid-glide → the chute behaves vanilla again
+      (strafe speed capped at 750/1350), not uncapped.
+- [ ] `HL.Enabled 0` → steep ramps you could surf become walkable again (vanilla walkable angle);
+      swim speed is vanilla. `HL.Enabled 1` → back to HL.
+- [ ] `HL.Swim 0` → water movement is fully vanilla (no air-strafing in water).
+
+## Save loads / respawn
+- [ ] Play a while (bhop, ABH), exit to the main menu, load a different save → the jump footstep
+      plays and ABH boosts immediately (no long dead period after loading).
+- [ ] Die and respawn → bhop, surf and the parachute glide all still work.
+
+## Multiplayer
+- [ ] Host a game: your movement is HL. A friend **without** the mod can join.
+- [ ] Join a friend's game (or a dedicated server) without the mod on their side: the join is
+      allowed and your movement is vanilla, with no rubber-banding.
+
 ## Toggles
 - [ ] `HL.Surf 0/1`, `HL.AutoHop 0/1`, `HL.MaintainHorizontalVelocity 0/1`, `HL.SlopeLandBoost 0/1`
       each change behavior as named.

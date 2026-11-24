@@ -29,10 +29,15 @@ namespace HLMovementHooks
     // True only for the local player's own character. Prevents our movement model from
     // affecting NPCs/creatures or remote pawns that share this component class. Takes the base
     // type so hooks on base-class methods (e.g. ComputeSlideVector) can reuse it.
+    // Also false when we are a CLIENT connected to someone else's server: the server simulates our
+    // character with vanilla movement, so applying HL movement client-side would only fight its
+    // corrections (rubber-banding). The mod is RequiredOnRemote=false, so such a client can still
+    // join -- it just moves vanilla there. Singleplayer and the host of a listen server are unaffected.
     static bool HLIsLocalPlayerMovement(const UCharacterMovementComponent* Self)
     {
         const ACharacter* Owner = Self ? Self->GetCharacterOwner() : nullptr;
-        return Owner != nullptr && Owner->IsPlayerControlled() && Owner->IsLocallyControlled();
+        return Owner != nullptr && Owner->IsPlayerControlled() && Owner->IsLocallyControlled()
+            && Owner->GetNetMode() != NM_Client;
     }
 }
 
@@ -133,6 +138,92 @@ struct FHLCharFallAccess : public AFGCharacterBase
     using AFGCharacterBase::mFallVelocity;
 };
 
+// Per-frame tracking used by the TickComponent hook (slope-land boost, surf carry, bhop edge).
+static FVector GHLSurfVel = FVector::ZeroVector;
+static uint8   GHLLastMode = MOVE_None;
+static FVector GHLLastVelocity = FVector::ZeroVector;
+static bool    GHLWasBhopHeld = false;
+
+// Parachute HL glide: the parachute settings asset is SHARED, so its originals are captured on chute
+// entry and must be put back when the glide ends, the feature or the whole mod is toggled off, or the
+// player changes (new world / respawn). Weak pointer: never touch an asset that has been unloaded.
+static bool    GHLParaOverride = false;
+static FVector GHLParaVelH = FVector::ZeroVector; // our independently-tracked horizontal (Z unused)
+static TWeakObjectPtr<UFGParachuteSettings> GHLSavedPS;
+static float   GHLSavedStrafe = 0.0f;
+static float   GHLSavedShiftStrafe = 0.0f;
+static float   GHLSavedLateralConv = 0.0f;
+static float   GHLSavedBraking = 0.0f;
+
+static void HLRestoreParachuteSettings()
+{
+    if (!GHLParaOverride) { return; }
+    if (UFGParachuteSettings* PS = GHLSavedPS.Get())
+    {
+        PS->mStrafeMaxSpeed = GHLSavedStrafe;
+        PS->mShiftStrafeMaxSpeed = GHLSavedShiftStrafe;
+        PS->mLateralToTerminalConversionRatio = GHLSavedLateralConv;
+        PS->mBrakingDeceleration = GHLSavedBraking;
+    }
+    GHLParaOverride = false;
+    GHLSavedPS.Reset();
+}
+
+// Engine movement values the CalcVelocity hook overrides on the player's movement component. Captured
+// (per component) before the first override so HL.Enabled 0 -- and the per-feature "vanilla" settings
+// (HL.WalkableFloorAngle <0, HL.Swim 0) -- can put the real vanilla values back.
+struct FHLVanillaMovement
+{
+    bool  bCaptured = false;
+    float WalkableFloorAngle = 0.0f;
+    bool  bMaintainHorizontalGroundVelocity = true;
+    float MaxSwimSpeed = 0.0f;
+};
+static FHLVanillaMovement GHLVanilla;
+
+static void HLCaptureVanillaMovement(const UFGCharacterMovementComponent* Self)
+{
+    if (GHLVanilla.bCaptured) { return; }
+    GHLVanilla.WalkableFloorAngle = Self->GetWalkableFloorAngle();
+    GHLVanilla.bMaintainHorizontalGroundVelocity = Self->bMaintainHorizontalGroundVelocity;
+    GHLVanilla.MaxSwimSpeed = Self->MaxSwimSpeed;
+    GHLVanilla.bCaptured = true;
+}
+
+static void HLRestoreVanillaMovement(UFGCharacterMovementComponent* Self)
+{
+    if (!GHLVanilla.bCaptured) { return; }
+    Self->SetWalkableFloorAngle(GHLVanilla.WalkableFloorAngle);
+    Self->bMaintainHorizontalGroundVelocity = GHLVanilla.bMaintainHorizontalGroundVelocity;
+    Self->MaxSwimSpeed = GHLVanilla.MaxSwimSpeed;
+    GHLVanilla.bCaptured = false;
+}
+
+// All the statics above describe ONE player movement component. When it changes -- a different save
+// is loaded, the player respawns, the world is rebuilt -- reset them so nothing stale leaks in. In
+// particular world time restarts at 0 on load, so a stale GHLLastJumpTimeSeconds would make every
+// JumpInterval negative and silently block ABH and the jump footstep until the clock caught up.
+static TWeakObjectPtr<const UCharacterMovementComponent> GHLStateOwner;
+
+static void HLSyncPlayerStateOwner(const UCharacterMovementComponent* Self)
+{
+    if (GHLStateOwner.Get() == Self) { return; }
+    GHLStateOwner = Self;
+    HLRestoreParachuteSettings();          // the shared asset must not stay altered
+    GHLVanilla = FHLVanillaMovement();     // the new component starts vanilla; capture it fresh
+    GHLWasSurfing = false;
+    GHLSurfLaunchActive = false;
+    GHLApplyDesiredVelocity = false;
+    GHLBeltVelocity = FVector::ZeroVector;
+    GHLLastJumpTimeSeconds = -1000.0f;
+    GHLJumpSoundFoot = 0;
+    GHLSurfVel = FVector::ZeroVector;
+    GHLLastMode = MOVE_None;
+    GHLLastVelocity = FVector::ZeroVector;
+    GHLWasBhopHeld = false;
+    GHLParaVelH = FVector::ZeroVector;
+}
+
 namespace HLMovementHooks
 {
     void RegisterHooks()
@@ -150,16 +241,13 @@ namespace HLMovementHooks
             {
                 FHLMovementSettings& S = FHLMovementSettings::Get();
                 GHLApplyDesiredVelocity = false; // armed only on the compute paths below
-                if (!S.bEnabled || !HLIsLocalPlayerMovement(Self)) { return; }
-                if (Self->MovementMode != MOVE_Walking && Self->MovementMode != MOVE_Falling
-                    && Self->MovementMode != MOVE_Swimming) { return; } // defer to vanilla for slide/zipline/etc.
+                if (!HLIsLocalPlayerMovement(Self)) { return; }
+                HLSyncPlayerStateOwner(Self);
+                if (!S.bEnabled) { HLRestoreVanillaMovement(Self); return; }
 
-                // Defer to vanilla when an animation is driving movement (emotes/scripted root motion),
-                // so we don't override root-motion velocity.
-                if (Self->HasAnimRootMotion()) { return; }
-
-                const FVector WishDir = HLComputeWishDir(Self);
-                const float WishSpeed = Self->GetIsSprinting() ? S.Params.SprintMaxSpeed : S.Params.MaxSpeed;
+                // Engine values we override. Capture the vanilla ones first so HL.Enabled 0 (and the
+                // per-feature "vanilla" settings below) can put them back instead of leaving them modded.
+                HLCaptureVanillaMovement(Self);
 
                 // Velocity follows the ramp surface (false) instead of being flattened to horizontal
                 // (true). false => no free speed walking up slopes, and your upward velocity is kept
@@ -167,11 +255,21 @@ namespace HLMovementHooks
                 Self->bMaintainHorizontalGroundVelocity = S.bMaintainHorizontalVelocity;
 
                 // Lowering the walkable angle makes steeper ramps non-walkable, so you slide/fall on
-                // them (surf) instead of walking up them. <0 leaves the vanilla angle untouched.
-                if (S.WalkableFloorAngle >= 0.0f)
-                {
-                    Self->SetWalkableFloorAngle(S.WalkableFloorAngle);
-                }
+                // them (surf) instead of walking up them. <0 = the vanilla angle.
+                Self->SetWalkableFloorAngle(S.WalkableFloorAngle >= 0.0f ? S.WalkableFloorAngle : GHLVanilla.WalkableFloorAngle);
+
+                // HL swimming raises MaxSwimSpeed (below); with HL.Swim 0 water is fully vanilla.
+                if (!S.bSwim) { Self->MaxSwimSpeed = GHLVanilla.MaxSwimSpeed; }
+
+                if (Self->MovementMode != MOVE_Walking && Self->MovementMode != MOVE_Falling
+                    && !(Self->MovementMode == MOVE_Swimming && S.bSwim)) { return; } // defer to vanilla for slide/zipline/HL.Swim 0/etc.
+
+                // Defer to vanilla when an animation is driving movement (emotes/scripted root motion),
+                // so we don't override root-motion velocity.
+                if (Self->HasAnimRootMotion()) { return; }
+
+                const FVector WishDir = HLComputeWishDir(Self);
+                const float WishSpeed = Self->GetIsSprinting() ? S.Params.SprintMaxSpeed : S.Params.MaxSpeed;
 
                 // Conveyor momentum: lift the belt's contribution out so HL friction/accel act only
                 // on the player's own velocity; the _AFTER hook re-adds it. Leaving the belt (B->0)
@@ -211,7 +309,7 @@ namespace HLMovementHooks
                     }
                     NewVel = V;
                 }
-                else if (Self->MovementMode == MOVE_Swimming && S.bSwim)
+                else if (Self->MovementMode == MOVE_Swimming) // only reached with S.bSwim (gated above)
                 {
                     // HL PM_WaterMove. Wish direction is the 3D input (GetCurrentAcceleration is NOT
                     // gravity-flattened while swimming, so looking down+forward dives). Bhop key = swim
@@ -283,6 +381,7 @@ namespace HLMovementHooks
             {
                 FHLMovementSettings& S = FHLMovementSettings::Get();
                 if (!S.bEnabled || !Result || !HLIsLocalPlayerMovement(Self)) { return; }
+                HLSyncPlayerStateOwner(Self);
 
                 // Time since the previous jump. Auto-bhop re-jumps the instant we're grounded, so a
                 // real (flat) bhop spaces jumps by its full air arc while machine-gunning up a ramp
@@ -378,7 +477,8 @@ namespace HLMovementHooks
             {
                 FHLMovementSettings& S = FHLMovementSettings::Get();
                 if (!S.bEnabled || Self == nullptr) { return; }
-                if (!Self->IsPlayerControlled() || !Self->IsLocallyControlled()) { return; }
+                if (!HLMovementHooks::HLIsLocalPlayerMovement(Self->GetCharacterMovement())) { return; }
+                HLSyncPlayerStateOwner(Self->GetCharacterMovement());
                 FVector& FallVel = static_cast<FHLCharFallAccess*>(Self)->mFallVelocity;
 
                 // Surf-launch exemption. A surf launch rotates horizontal speed into vertical (ClipVelocity
@@ -407,14 +507,22 @@ namespace HLMovementHooks
             [](UFGCharacterMovementComponent* Self, float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
             {
                 FHLMovementSettings& S = FHLMovementSettings::Get();
-                if (!S.bEnabled || !HLIsLocalPlayerMovement(Self)) { return; }
+                if (!HLIsLocalPlayerMovement(Self)) { return; }
+                HLSyncPlayerStateOwner(Self);
+                if (!S.bEnabled)
+                {
+                    // Mod switched off: put back everything we changed, so "off" really is vanilla.
+                    HLRestoreParachuteSettings();
+                    HLRestoreVanillaMovement(Self);
+                    return;
+                }
 
                 // Surf integration (PM_FlyMove-style, run where the velocity we set survives UE's
                 // re-derivation): while airborne and in contact with a non-walkable ramp below us, we
                 // own the velocity -- gravity + air-accel + clip-to-ramp -- and assert it here. This is
                 // what converts horizontal speed into up-the-ramp speed and lets you climb/launch.
                 {
-                    static FVector SurfVel = FVector::ZeroVector;
+                    FVector& SurfVel = GHLSurfVel;
                     bool bSurfingNow = false;
                     if (S.bSurf && Self->MovementMode == MOVE_Falling && Self->UpdatedComponent)
                     {
@@ -462,9 +570,10 @@ namespace HLMovementHooks
                     if (S.bDebug) { FHLDebugState::Get().bSurfing = bSurfingNow; }
                 }
 
-                // Singleplayer: only the local player reaches here, so static last-frame state is fine.
-                static uint8 LastMode = MOVE_None;
-                static FVector LastVelocity = FVector::ZeroVector;
+                // Only the local player reaches here; last-frame state lives in file-scope statics that
+                // HLSyncPlayerStateOwner resets when the player's movement component changes.
+                uint8& LastMode = GHLLastMode;
+                FVector& LastVelocity = GHLLastVelocity;
 
                 // Landing on a slope: redirect the PRE-landing (airborne) velocity along the floor
                 // plane instead of letting UE absorb the fall. ClipVelocity converts fall-speed into
@@ -485,7 +594,7 @@ namespace HLMovementHooks
                 // else FG's mIsPressingJump. Hold-to-bhop when HL.AutoHop is on; tap-to-jump (rising
                 // edge) when it's off. The first DoJump flips MovementMode to falling, so the grounded
                 // guard prevents any second trigger the same frame. Local player only -> static is fine.
-                static bool bWasBhopHeld = false;
+                bool& bWasBhopHeld = GHLWasBhopHeld;
                 const bool bBhopHeld = HLBhopHeld(Self, S);
                 const bool bBhopJustPressed = bBhopHeld && !bWasBhopHeld;
                 if (Self->IsMovingOnGround() && bBhopHeld && (S.bAutoHop || bBhopJustPressed))
@@ -507,29 +616,25 @@ namespace HLMovementHooks
                 //       and a downward-only descent cap. This survives into the next PhysParachute the
                 //       same way the surf integration's velocity does.
                 // The settings asset is shared, so we capture the originals on entry and restore them
-                // when the chute closes (or the feature is toggled off) -- never leave it altered.
+                // when the chute closes, the feature or the mod is toggled off, or the player changes
+                // (HLRestoreParachuteSettings) -- never leave it altered.
                 {
-                    static bool    bParaOverride = false;
-                    static FVector ParaVelH = FVector::ZeroVector; // our independently-tracked horizontal (Z unused)
-                    static UFGParachuteSettings* SavedPS = nullptr;
-                    static float SavedStrafe = 0.0f;
-                    static float SavedShiftStrafe = 0.0f;
-                    static float SavedLateralConv = 0.0f;
-                    static float SavedBraking = 0.0f;
+                    FVector& ParaVelH = GHLParaVelH;
 
                     AFGParachute* Chute = S.bParachuteHLGlide ? HLGetDeployedParachute(Self) : nullptr;
                     UFGParachuteSettings* PS = Chute ? Chute->mParachuteSettings.Get() : nullptr;
                     if (PS != nullptr)
                     {
-                        if (!bParaOverride || SavedPS != PS)
+                        if (!GHLParaOverride || GHLSavedPS.Get() != PS)
                         {
-                            SavedPS = PS;
-                            SavedStrafe = PS->mStrafeMaxSpeed;
-                            SavedShiftStrafe = PS->mShiftStrafeMaxSpeed;
-                            SavedLateralConv = PS->mLateralToTerminalConversionRatio;
-                            SavedBraking = PS->mBrakingDeceleration;
+                            HLRestoreParachuteSettings(); // a different asset than before: put the old one back first
+                            GHLSavedPS = PS;
+                            GHLSavedStrafe = PS->mStrafeMaxSpeed;
+                            GHLSavedShiftStrafe = PS->mShiftStrafeMaxSpeed;
+                            GHLSavedLateralConv = PS->mLateralToTerminalConversionRatio;
+                            GHLSavedBraking = PS->mBrakingDeceleration;
                             ParaVelH = FVector(Self->Velocity.X, Self->Velocity.Y, 0.0f); // seed from incoming momentum
-                            bParaOverride = true;
+                            GHLParaOverride = true;
                         }
                         PS->mStrafeMaxSpeed = 1.0e6f;
                         PS->mShiftStrafeMaxSpeed = 1.0e6f;
@@ -548,17 +653,9 @@ namespace HLMovementHooks
                         if (Vz < -S.ParachuteFallSpeed) { Vz = -S.ParachuteFallSpeed; } // slow descent only
                         Self->Velocity = FVector(ParaVelH.X, ParaVelH.Y, Vz);
                     }
-                    else if (bParaOverride)
+                    else
                     {
-                        if (SavedPS != nullptr)
-                        {
-                            SavedPS->mStrafeMaxSpeed = SavedStrafe;
-                            SavedPS->mShiftStrafeMaxSpeed = SavedShiftStrafe;
-                            SavedPS->mLateralToTerminalConversionRatio = SavedLateralConv;
-                            SavedPS->mBrakingDeceleration = SavedBraking;
-                        }
-                        bParaOverride = false;
-                        SavedPS = nullptr;
+                        HLRestoreParachuteSettings(); // chute closed or HL.ParachuteHLGlide 0
                     }
                 }
 
