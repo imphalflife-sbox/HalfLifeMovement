@@ -40,7 +40,7 @@ struct FHLMovementSettings
     float WaterBreachZ = 450.0f;                 // upward breach impulse at the surface, cm/s (~a normal jump)
     float WaterBreachImmersion = 0.5f;           // breach allowed only when ImmersionDepth() < this (capsule <= half submerged)
     FHLMoveParams Params;            // accel/airaccel/friction/cap/maxspeed/sprintmaxspeed
-    bool  bSpeedometer = true;
+    bool  bSpeedometer = false;      // off by default; HL.Speedometer 1 (+ HL.Save) to show it
     bool  bSpeedometerJumpSpeeds = true;
     int32 SpeedUnit = 0;             // 0=u/s(cm/s) 1=m/s 2=km/h
     bool  bDebug = false;            // on-screen debug overlay (movement mode, velocity, hook firing)

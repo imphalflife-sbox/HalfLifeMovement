@@ -15,7 +15,9 @@ momentum-preserving bunnyhopping.
 - Conveyor momentum
 - Swimming and sharking
 - Momentum carry-over into the parachute (HL-style glide) and jetpack
-- Speedometer HUD with live horizontal speed and color-coded per-jump deltas
+- HL1-style footstep on every jump, so bhopping isn't silent
+- Fall damage counts only vertical impact speed, and surf launches never cause fall damage
+- Speedometer HUD with live horizontal speed and color-coded per-jump deltas (off by default)
 - Every setting is live-tunable and can be saved
 
 Multiplayer support: TBD.
@@ -40,8 +42,8 @@ Open the in-game console and use the `HL.*` commands:
 | `HL.Dump` | Print every current setting |
 | `HL.Save` | Save settings so they persist across restarts |
 | `HL.Debug 1` | Show the debug overlay |
-| `HL.Speedometer 0/1` | Toggle the speedometer |
-| `HL.AutoHop`, `HL.ABH`, `HL.Surf`, `HL.Swim` | Toggle individual features |
+| `HL.Speedometer 0/1` | Toggle the speedometer (off by default) |
+| `HL.AutoHop`, `HL.ABH`, `HL.Surf`, `HL.Swim`, `HL.JumpSound` | Toggle individual features |
 | `HL.Accelerate`, `HL.AirAccelerate`, `HL.Friction`, `HL.MaxSpeed` | Tune the movement model |
 
 The full list of commands is in [docs/TESTING.md](docs/TESTING.md).

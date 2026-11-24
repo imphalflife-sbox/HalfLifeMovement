@@ -72,15 +72,28 @@ console cvars; persist them with `HL.Save`.
 ## Toggles
 - [ ] `HL.Surf 0/1`, `HL.AutoHop 0/1`, `HL.MaintainHorizontalVelocity 0/1`, `HL.SlopeLandBoost 0/1`
       each change behavior as named.
-- [ ] `HL.Speedometer 0/1`, `HL.SpeedometerJumpSpeeds 0/1`, `HL.SpeedUnit 0/1/2` affect the HUD.
+- [ ] `HL.Speedometer 0/1` (default 0), `HL.SpeedometerJumps 0/1`, `HL.SpeedUnit 0/1/2` affect the HUD.
+- [ ] `HL.JumpSound 1` → one surface-aware footstep per jump (alternating feet, no spam when
+      auto-hopping up a ramp); `0` → silent bhops (vanilla).
 
 ---
 
 ## Full cvar reference
-`HL.Enabled HL.AutoHop HL.Accelerate HL.AirAccelerate HL.Friction HL.StopSpeed HL.AirSpeedCap
-HL.MaxSpeed HL.SprintMaxSpeed HL.MaintainHorizontalVelocity HL.SlopeLandBoost HL.SlopeGravity
-HL.WalkableFloorAngle HL.Surf HL.ParachuteHLGlide HL.ParachuteFallSpeed HL.ParachuteDragScale
-HL.Speedometer HL.SpeedometerJumps HL.SpeedUnit HL.Debug HL.Dump HL.Save`
+Each `HL.*` variable's in-game help text (type `help HL.<name>`) describes its range and default.
+
+- **General:** `HL.Enabled HL.AutoHop HL.DedicatedBhopKey HL.BhopKey HL.JumpSound`
+- **Movement model:** `HL.Accelerate HL.AirAccelerate HL.Friction HL.StopSpeed HL.AirSpeedCap
+  HL.MaxSpeed HL.SprintMaxSpeed`
+- **Slopes / surf:** `HL.MaintainHorizontalVelocity HL.SlopeLandBoost HL.SlopeGravity
+  HL.WalkableFloorAngle HL.Surf`
+- **ABH:** `HL.ABH HL.ABHBoost HL.ABHMaxGain HL.ABHDeadzone HL.ABHMinInterval`
+- **Fall damage:** `HL.VerticalFallDamageOnly HL.SurfNoFallDamage`
+- **Conveyors:** `HL.ConveyorMomentum`
+- **Swimming:** `HL.Swim HL.Sharking HL.WaterMaxSpeedScale HL.WaterAccelerate HL.WaterFriction
+  HL.WaterSink HL.WaterSinkSpeed HL.WaterBreachZ HL.WaterBreachImmersion`
+- **Parachute / jetpack:** `HL.ParachuteHLGlide HL.ParachuteFallSpeed HL.ParachuteDragScale`
+- **HUD / debug:** `HL.Speedometer HL.SpeedometerJumps HL.SpeedUnit HL.Debug`
+- **Commands:** `HL.Dump HL.Save`
 
 ---
 
