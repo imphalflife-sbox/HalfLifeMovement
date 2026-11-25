@@ -17,6 +17,9 @@ there and every bhop will also deploy your parachute or burn jetpack fuel.
 2. That's it: **Space** now bhops (hold it to auto-hop), and the parachute and jetpack use the
    new key.
 
+If Jump and your bhop key are still the same key, the mod shows a warning on screen once per game
+launch (turn it off with `HL.JumpKeyWarning 0` and `HL.Save`).
+
 To bhop on a different key, set `HL.BhopKey` (e.g. `HL.BhopKey LeftAlt`) and `HL.Save`. To go back
 to bhopping with the game's Jump action instead, use `HL.DedicatedBhopKey 0`. Equipment will then
 fire on every hop again.

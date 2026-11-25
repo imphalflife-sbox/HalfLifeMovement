@@ -18,6 +18,7 @@ namespace HLMovementConsole
         GConfig->SetBool (HLSection, TEXT("AutoHop"),                  S.bAutoHop, File);
         GConfig->SetBool  (HLSection, TEXT("DedicatedBhopKey"),        S.bDedicatedBhopKey, File);
         GConfig->SetString(HLSection, TEXT("BhopKey"),                 *S.BhopKey, File);
+        GConfig->SetBool  (HLSection, TEXT("JumpKeyWarning"),          S.bJumpKeyWarning, File);
         GConfig->SetBool (HLSection, TEXT("MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity, File);
         GConfig->SetBool (HLSection, TEXT("SlopeLandBoost"),           S.bSlopeLandBoost, File);
         GConfig->SetBool (HLSection, TEXT("Surf"),                     S.bSurf, File);
@@ -71,6 +72,7 @@ namespace HLMovementConsole
         GConfig->GetBool (HLSection, TEXT("AutoHop"),                  S.bAutoHop, File);
         GConfig->GetBool  (HLSection, TEXT("DedicatedBhopKey"),        S.bDedicatedBhopKey, File);
         GConfig->GetString(HLSection, TEXT("BhopKey"),                 S.BhopKey, File);
+        GConfig->GetBool  (HLSection, TEXT("JumpKeyWarning"),          S.bJumpKeyWarning, File);
         GConfig->GetBool (HLSection, TEXT("MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity, File);
         GConfig->GetBool (HLSection, TEXT("SlopeLandBoost"),           S.bSlopeLandBoost, File);
         GConfig->GetBool (HLSection, TEXT("Surf"),                     S.bSurf, File);
@@ -115,8 +117,8 @@ namespace HLMovementConsole
     {
         const FHLMovementSettings& S = FHLMovementSettings::Get();
         const FString Line = FString::Printf(
-            TEXT("[HL] enabled=%d autohop=%d dedBhop=%d bhopKey=%s conveyor=%d abh=%d abhMinInterval=%.2f jumpSound=%d vertFallDmg=%d surfNoFallDmg=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f paraGlide=%d paraFall=%.0f speedo=%d unit=%d | swim=%d shark=%d waterScale=%.2f waterAccel=%.1f waterFric=%.1f sink=%d sinkSpd=%.0f breachZ=%.0f breachImm=%.2f"),
-            S.bEnabled ? 1 : 0, S.bAutoHop ? 1 : 0, S.bDedicatedBhopKey ? 1 : 0, *S.BhopKey,
+            TEXT("[HL] enabled=%d autohop=%d dedBhop=%d bhopKey=%s jumpKeyWarn=%d conveyor=%d abh=%d abhMinInterval=%.2f jumpSound=%d vertFallDmg=%d surfNoFallDmg=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f paraGlide=%d paraFall=%.0f speedo=%d unit=%d | swim=%d shark=%d waterScale=%.2f waterAccel=%.1f waterFric=%.1f sink=%d sinkSpd=%.0f breachZ=%.0f breachImm=%.2f"),
+            S.bEnabled ? 1 : 0, S.bAutoHop ? 1 : 0, S.bDedicatedBhopKey ? 1 : 0, *S.BhopKey, S.bJumpKeyWarning ? 1 : 0,
             S.bConveyorMomentum ? 1 : 0, S.bABH ? 1 : 0,
             S.ABHMinInterval, S.bJumpSound ? 1 : 0, S.bVerticalFallDamageOnly ? 1 : 0, S.bSurfNoFallDamage ? 1 : 0,
             S.Params.Accelerate, S.Params.AirAccelerate, S.Params.Friction, S.Params.StopSpeed,
@@ -149,6 +151,9 @@ namespace HLMovementConsole
         static FAutoConsoleVariableRef CVarBhopKey(
             TEXT("HL.BhopKey"), S.BhopKey,
             TEXT("Key name polled for bhop when HL.DedicatedBhopKey=1 (default SpaceBar). e.g. SpaceBar, LeftAlt, LeftControl."));
+        static FAutoConsoleVariableRef CVarJumpKeyWarning(
+            TEXT("HL.JumpKeyWarning"), S.bJumpKeyWarning,
+            TEXT("1 = once per game launch, warn on screen if the game's Jump is bound to the same key as HL.BhopKey (parachute/jetpack would fire on every hop); 0 = never warn."));
 
         static FAutoConsoleVariableRef CVarAccel(
             TEXT("HL.Accelerate"), S.Params.Accelerate, TEXT("Ground acceleration (sv_accelerate)."));

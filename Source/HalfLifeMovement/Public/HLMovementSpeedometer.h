@@ -45,6 +45,16 @@ struct FHLDebugState
     static FHLDebugState& Get();
 };
 
+/** One-time on-screen warning that the game's Jump shares the bhop key (HL.JumpKeyWarning). Set by the
+ *  movement hooks, drawn by DrawTo until ShowUntil (FPlatformTime::Seconds clock). Game-thread only. */
+struct FHLJumpKeyWarning
+{
+    static constexpr double DurationSeconds = 15.0;
+    FString KeyName;            // display name of the shared key, e.g. "Space Bar"
+    double  ShowUntil = 0.0;    // 0 = never shown
+    static FHLJumpKeyWarning& Get();
+};
+
 class AHUD;
 
 namespace HLSpeedometer

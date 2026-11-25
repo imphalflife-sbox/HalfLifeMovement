@@ -9,6 +9,7 @@ struct FHLMovementSettings
     bool  bAutoHop = true;
     bool  bDedicatedBhopKey = true;            // bhop is triggered by a mod-polled key (BhopKey) instead of the game Jump action, so jump-key equipment (jetpack/parachute) is never fired by bhopping
     FString BhopKey = TEXT("SpaceBar");         // key name polled for bhop when bDedicatedBhopKey; resolved via FKey(FName), falls back to SpaceBar if invalid. Rebind the game Jump off this key in the game menu
+    bool  bJumpKeyWarning = true;               // once per game launch, show an on-screen warning if the game's Jump is bound to the same key as BhopKey (equipment would fire on every hop)
     bool  bCarryParachute = true;
     bool  bCarryJetpack = true;
     float ParachuteDragScale = 0.25f;

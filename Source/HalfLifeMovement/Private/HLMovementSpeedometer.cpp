@@ -5,6 +5,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/Engine.h"
 #include "HLMovementSettings.h"
+#include "HAL/PlatformTime.h"
 
 FHLSpeedometerData& FHLSpeedometerData::Get()
 {
@@ -15,6 +16,12 @@ FHLSpeedometerData& FHLSpeedometerData::Get()
 FHLDebugState& FHLDebugState::Get()
 {
     static FHLDebugState Instance;
+    return Instance;
+}
+
+FHLJumpKeyWarning& FHLJumpKeyWarning::Get()
+{
+    static FHLJumpKeyWarning Instance;
     return Instance;
 }
 
@@ -40,6 +47,39 @@ namespace
     {
         switch (Unit) { case 1: return TEXT("m/s"); case 2: return TEXT("km/h"); default: return TEXT("u/s"); }
     }
+
+    // Two centered lines near the top of the screen: the problem + fix, then how to turn it off.
+    // Independent of HL.Speedometer -- the warning matters even with the HUD hidden.
+    void HLDrawJumpKeyWarning(AHUD* HUD, const FHLMovementSettings& S)
+    {
+        const FHLJumpKeyWarning& W = FHLJumpKeyWarning::Get();
+        if (!S.bJumpKeyWarning || W.ShowUntil <= 0.0 || FPlatformTime::Seconds() >= W.ShowUntil) { return; }
+
+        APlayerController* PC = HUD->GetOwningPlayerController();
+        if (PC == nullptr) { return; }
+        int32 SizeX = 0, SizeY = 0;
+        PC->GetViewportSize(SizeX, SizeY);
+        if (SizeX <= 0 || SizeY <= 0) { return; }
+
+        UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+        const FString Line1 = FString::Printf(
+            TEXT("Half-Life Movement: Jump and your bhop key are both %s - the parachute/jetpack will fire on every hop. Rebind Jump in Options -> Controls."),
+            *W.KeyName);
+        const FString Line2 = TEXT("To stop this warning, enter HL.JumpKeyWarning 0 then HL.Save in the console.");
+
+        const float Scale = 1.15f;
+        float Y = SizeY * 0.12f;
+        for (const FString* Line : { &Line1, &Line2 })
+        {
+            float W1 = 0.0f, H1 = 0.0f;
+            HUD->GetTextSize(*Line, W1, H1, Font, Scale);
+            const FLinearColor Color = (Line == &Line1)
+                ? FLinearColor(1.0f, 0.55f, 0.15f, 1.0f)   // FICSIT orange
+                : FLinearColor(0.85f, 0.85f, 0.85f, 1.0f);
+            HUD->DrawText(*Line, Color, (SizeX - W1) * 0.5f, Y, Font, Scale);
+            Y += H1 + 4.0f;
+        }
+    }
 }
 
 namespace HLSpeedometer
@@ -47,7 +87,9 @@ namespace HLSpeedometer
     void DrawTo(AHUD* HUD)
     {
         FHLMovementSettings& S = FHLMovementSettings::Get();
-        if (!S.bEnabled || !S.bSpeedometer || HUD == nullptr) { return; }
+        if (!S.bEnabled || HUD == nullptr) { return; }
+        HLDrawJumpKeyWarning(HUD, S);
+        if (!S.bSpeedometer) { return; }
 
         APlayerController* PC = HUD->GetOwningPlayerController();
         APawn* P = HUD->GetOwningPawn();

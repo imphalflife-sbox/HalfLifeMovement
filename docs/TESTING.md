@@ -69,6 +69,16 @@ console cvars; persist them with `HL.Save`.
       the value persists (check with `HL.Dump`).
 - [ ] `HL.Dump` prints current values to the log / on-screen.
 
+## Jump-key conflict warning
+- [ ] With Jump rebound off Space (e.g. Left Alt) and the default bhop key → no warning.
+- [ ] `HL.BhopKey LeftAlt` (now the same as Jump) → within a few seconds, a two-line warning appears
+      at the top of the screen: orange line naming the key + "Rebind Jump…", grey line
+      "To stop this warning, enter HL.JumpKeyWarning 0…". It disappears after ~15 s.
+- [ ] Change `HL.BhopKey` back and forth, load another save → the warning does **not** come back
+      (once per game launch). Restart the game with the conflict still in place → it shows again.
+- [ ] `HL.JumpKeyWarning 0` + `HL.Save`, restart with the conflict → no warning.
+- [ ] `HL.Speedometer 0` doesn't suppress the warning.
+
 ## Off really means vanilla
 - [ ] Open the parachute, glide, then `HL.Enabled 0` mid-glide → the chute behaves vanilla again
       (strafe speed capped at 750/1350), not uncapped.
@@ -98,7 +108,7 @@ console cvars; persist them with `HL.Save`.
 ## Full cvar reference
 Each `HL.*` variable's in-game help text (type `help HL.<name>`) describes its range and default.
 
-- **General:** `HL.Enabled HL.AutoHop HL.DedicatedBhopKey HL.BhopKey HL.JumpSound`
+- **General:** `HL.Enabled HL.AutoHop HL.DedicatedBhopKey HL.BhopKey HL.JumpKeyWarning HL.JumpSound`
 - **Movement model:** `HL.Accelerate HL.AirAccelerate HL.Friction HL.StopSpeed HL.AirSpeedCap
   HL.MaxSpeed HL.SprintMaxSpeed`
 - **Slopes / surf:** `HL.MaintainHorizontalVelocity HL.SlopeLandBoost HL.SlopeGravity

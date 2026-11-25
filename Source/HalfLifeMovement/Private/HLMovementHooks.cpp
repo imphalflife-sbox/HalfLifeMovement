@@ -17,6 +17,8 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
+#include "FGPlayerInput.h"
+#include "HAL/PlatformTime.h"
 
 namespace HLMovementHooks
 {
@@ -53,6 +55,13 @@ static FVector HLComputeWishDir(const UFGCharacterMovementComponent* CMC)
 // bhop trigger is decoupled from the game Jump action that jetpack/parachute are bound to. With the
 // toggle off it falls back to FG's mIsPressingJump (the game Jump action) -- the original behavior.
 // Local-player gating is done by the callers (HLIsLocalPlayerMovement).
+// The key HL.BhopKey names, falling back to SpaceBar if the name isn't a valid key.
+static FKey HLResolveBhopKey(const FHLMovementSettings& S)
+{
+    FKey Key(FName(*S.BhopKey));
+    return Key.IsValid() ? Key : EKeys::SpaceBar;
+}
+
 static bool HLBhopHeld(const UFGCharacterMovementComponent* Self, const FHLMovementSettings& S)
 {
     if (Self == nullptr) { return false; }
@@ -60,9 +69,46 @@ static bool HLBhopHeld(const UFGCharacterMovementComponent* Self, const FHLMovem
     const ACharacter* Owner = Self->GetCharacterOwner();
     const APlayerController* PC = Owner ? Cast<APlayerController>(Owner->GetController()) : nullptr;
     if (PC == nullptr) { return false; }
-    FKey Key(FName(*S.BhopKey));
-    if (!Key.IsValid()) { Key = EKeys::SpaceBar; }
-    return PC->IsInputKeyDown(Key);
+    return PC->IsInputKeyDown(HLResolveBhopKey(S));
+}
+
+// Jump-key conflict warning (HL.JumpKeyWarning). The dedicated bhop key only keeps the parachute and
+// jetpack from firing on every hop once the game's own Jump action is bound to a DIFFERENT key. Many
+// players won't know to rebind it, so check the game's current Jump binding -- FG stores rebinds under
+// the mappable action name "PlayerMovement_Jump" and GetCurrentMappingForAction returns the player's
+// rebind, or the default (Space) -- and warn on screen when it matches the bhop key. Shown at most once
+// per game launch: the static flag is process-lifetime and deliberately NOT reset by
+// HLSyncPlayerStateOwner, so loading saves or respawning doesn't nag again.
+static bool   GHLJumpKeyWarningDone = false;
+static double GHLNextJumpKeyCheck = 0.0;
+
+static void HLUpdateJumpKeyWarning(const UFGCharacterMovementComponent* Self, const FHLMovementSettings& S)
+{
+    if (GHLJumpKeyWarningDone || !S.bJumpKeyWarning || !S.bDedicatedBhopKey) { return; }
+    const double Now = FPlatformTime::Seconds();
+    if (GHLNextJumpKeyCheck == 0.0) { GHLNextJumpKeyCheck = Now + 3.0; return; } // let input settings settle after load
+    if (Now < GHLNextJumpKeyCheck) { return; }
+    GHLNextJumpKeyCheck = Now + 1.0; // cheap lookup; ~1 Hz catches mid-game rebinds
+
+    const ACharacter* Owner = Self->GetCharacterOwner();
+    const APlayerController* PC = Owner ? Cast<APlayerController>(Owner->GetController()) : nullptr;
+    const UFGPlayerInput* Input = PC ? Cast<UFGPlayerInput>(PC->PlayerInput) : nullptr;
+    if (Input == nullptr) { return; }
+
+    FKey JumpKey;
+    TArray<FKey> JumpModifiers;
+    if (!Input->GetCurrentMappingForAction(FName(TEXT("PlayerMovement_Jump")), JumpKey, JumpModifiers)) { return; }
+    // A chord (e.g. Ctrl+Space) isn't triggered by the bare bhop key, so it isn't a conflict.
+    if (!JumpKey.IsValid() || JumpModifiers.Num() > 0) { return; }
+
+    const FKey BhopKey = HLResolveBhopKey(S);
+    if (JumpKey != BhopKey) { return; }
+
+    GHLJumpKeyWarningDone = true;
+    FHLJumpKeyWarning& W = FHLJumpKeyWarning::Get();
+    W.KeyName = BhopKey.GetDisplayName().ToString();
+    W.ShowUntil = Now + FHLJumpKeyWarning::DurationSeconds;
+    UE_LOG(LogTemp, Warning, TEXT("[HL] The game's Jump and the bhop key are both %s: the parachute/jetpack will fire on every hop. Rebind Jump in Options -> Controls, or change HL.BhopKey. (HL.JumpKeyWarning 0 disables this warning.)"), *W.KeyName);
 }
 
 // Velocity imparted by the conveyor belt the player is standing on, in world space (zero when off
@@ -516,6 +562,8 @@ namespace HLMovementHooks
                     HLRestoreVanillaMovement(Self);
                     return;
                 }
+
+                HLUpdateJumpKeyWarning(Self, S);
 
                 // Surf integration (PM_FlyMove-style, run where the velocity we set survives UE's
                 // re-derivation): while airborne and in contact with a non-walkable ramp below us, we
