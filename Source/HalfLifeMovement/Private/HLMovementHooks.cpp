@@ -5,6 +5,8 @@
 #include "FGCharacterMovementComponent.h"
 #include "FGCharacterBase.h"
 #include "FGCharacterPlayer.h"
+#include "FGHealthComponent.h"
+#include "GameFramework/DamageType.h"
 #include "Equipment/FGParachute.h"
 #include "Buildables/FGBuildableConveyorBelt.h"
 #include "Patching/NativeHookManager.h"
@@ -184,11 +186,38 @@ struct FHLCharFallAccess : public AFGCharacterBase
     using AFGCharacterBase::mFallVelocity;
 };
 
+// HL.Debug fall-damage diagnostics: the Landed before-hook snapshots the landing inputs here and the
+// Landed _AFTER hook logs them with the health change. GHLInLanded marks "inside FG's Landed" so the
+// damage hook can tell fall damage from other damage. Local player only -> static.
+struct FHLLandLog
+{
+    FVector RawFallVel = FVector::ZeroVector;
+    FVector Velocity = FVector::ZeroVector;
+    FVector ImpactNormal = FVector::ZeroVector;
+    FVector Normal = FVector::ZeroVector;
+    float   WalkableZ = 0.0f;
+    bool    bSurfFlag = false;
+    bool    bWasSurfing = false;
+    float   HealthBefore = -1.0f;
+    FString HitName;
+};
+static FHLLandLog GHLLandLog;
+static bool GHLInLanded = false;
+
 // Per-frame tracking used by the TickComponent hook (slope-land boost, surf carry, bhop edge).
 static FVector GHLSurfVel = FVector::ZeroVector;
 static uint8   GHLLastMode = MOVE_None;
 static FVector GHLLastVelocity = FVector::ZeroVector;
 static bool    GHLWasBhopHeld = false;
+
+// Surf contacts: the normals of the surfaces UE actually slid the falling player along during this
+// movement tick (recorded in the ComputeSlideVector hook, which PhysFalling calls on every impact),
+// reset at tick start and consumed by the surf integration in the TickComponent _AFTER hook. The
+// integration clips against THESE rather than the straight-down floor trace, because on a curved
+// (e.g. upward-bending) ramp the surface below you is not the one you are riding. Local player only.
+static TArray<FVector> GHLContactNormals;
+// HL.Debug per-frame surf trace ([HL.Surf] log): velocity at the start of the movement tick.
+static FVector GHLDbgVelTickStart = FVector::ZeroVector;
 
 // Parachute HL glide: the parachute settings asset is SHARED, so its originals are captured on chute
 // entry and must be put back when the glide ends, the feature or the whole mod is toggled off, or the
@@ -527,6 +556,25 @@ namespace HLMovementHooks
                 HLSyncPlayerStateOwner(Self->GetCharacterMovement());
                 FVector& FallVel = static_cast<FHLCharFallAccess*>(Self)->mFallVelocity;
 
+                // HL.Debug fall-damage diagnostics: snapshot the landing inputs BEFORE we modify them;
+                // the Landed _AFTER hook logs them with the resulting health change.
+                GHLInLanded = true;
+                if (S.bDebug)
+                {
+                    const UCharacterMovementComponent* CMC = Self->GetCharacterMovement();
+                    const UFGHealthComponent* HC = Self->GetHealthComponent();
+                    GHLLandLog.RawFallVel = FallVel;
+                    GHLLandLog.Velocity = CMC ? CMC->Velocity : FVector::ZeroVector;
+                    GHLLandLog.ImpactNormal = Hit.ImpactNormal;
+                    GHLLandLog.Normal = Hit.Normal;
+                    GHLLandLog.WalkableZ = CMC ? CMC->GetWalkableFloorZ() : 0.0f;
+                    GHLLandLog.bSurfFlag = GHLSurfLaunchActive;
+                    GHLLandLog.bWasSurfing = GHLWasSurfing;
+                    GHLLandLog.HealthBefore = HC ? HC->GetCurrentHealth() : -1.0f;
+                    GHLLandLog.HitName = Hit.GetComponent() ? Hit.GetComponent()->GetOwner()
+                        ? Hit.GetComponent()->GetOwner()->GetName() : Hit.GetComponent()->GetName() : FString(TEXT("none"));
+                }
+
                 // Surf-launch exemption. A surf launch rotates horizontal speed into vertical (ClipVelocity
                 // up the ramp), so the vertical-only strip below can't protect it -- the damaging speed is
                 // now in Z. If the airborne arc we're landing from touched a surf ramp, treat it like a
@@ -546,6 +594,64 @@ namespace HLMovementHooks
                     FallVel.X = 0.0f;
                     FallVel.Y = 0.0f;
                 }
+            });
+
+        // HL.Debug fall-damage diagnostics: log every local-player landing -- what went into fall
+        // damage (raw vs. as modified by us), the surface it landed on, the surf state, and the health
+        // change across FG's Landed (where CheckFallDamage runs). Tells us whether mid-surf damage
+        // comes from a real Landed (e.g. a walkable landscape triangle hit while carving upward).
+        SUBSCRIBE_METHOD_VIRTUAL_AFTER(AFGCharacterBase::Landed, GetMutableDefault<AFGCharacterPlayer>(),
+            [](AFGCharacterBase* Self, const FHitResult& Hit)
+            {
+                const bool bWasInLanded = GHLInLanded;
+                GHLInLanded = false;
+                FHLMovementSettings& S = FHLMovementSettings::Get();
+                if (!bWasInLanded || !S.bEnabled || !S.bDebug || Self == nullptr) { return; }
+                if (!HLMovementHooks::HLIsLocalPlayerMovement(Self->GetCharacterMovement())) { return; }
+                const FVector& FallVel = static_cast<FHLCharFallAccess*>(Self)->mFallVelocity;
+                const UFGHealthComponent* HC = Self->GetHealthComponent();
+                const float HealthAfter = HC ? HC->GetCurrentHealth() : -1.0f;
+                const FHLLandLog& L = GHLLandLog;
+                UE_LOG(LogTemp, Warning,
+                    TEXT("[HL.Land] t=%.2f rawFallVel=(%.0f,%.0f,%.0f)|%.0f usedFallVel=(%.0f,%.0f,%.0f)|%.0f vel=(%.0f,%.0f,%.0f) impactN=(%.2f,%.2f,%.2f) capN.Z=%.2f walkableZ=%.3f surfFlag=%d surfing=%d hit=%s health %.1f -> %.1f (dmg %.1f)"),
+                    Self->GetWorld() ? Self->GetWorld()->GetTimeSeconds() : 0.0f,
+                    L.RawFallVel.X, L.RawFallVel.Y, L.RawFallVel.Z, L.RawFallVel.Size(),
+                    FallVel.X, FallVel.Y, FallVel.Z, FallVel.Size(),
+                    L.Velocity.X, L.Velocity.Y, L.Velocity.Z,
+                    L.ImpactNormal.X, L.ImpactNormal.Y, L.ImpactNormal.Z, L.Normal.Z, L.WalkableZ,
+                    L.bSurfFlag ? 1 : 0, L.bWasSurfing ? 1 : 0, *L.HitName,
+                    L.HealthBefore, HealthAfter, L.HealthBefore - HealthAfter);
+            });
+
+        // HL.Debug: log ANY damage the local player takes, tagged with whether it happened inside
+        // Landed. Damage outside Landed while surfing would mean a source other than fall damage.
+        SUBSCRIBE_METHOD_VIRTUAL(UFGHealthComponent::TakeDamage, GetMutableDefault<UFGHealthComponent>(),
+            [](auto& Scope, UFGHealthComponent* Self, AActor* DamagedActor, float DamageAmount,
+               const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)
+            {
+                FHLMovementSettings& S = FHLMovementSettings::Get();
+                if (!S.bEnabled || !S.bDebug) { return; }
+                const ACharacter* Char = Cast<ACharacter>(DamagedActor);
+                if (Char == nullptr || !HLMovementHooks::HLIsLocalPlayerMovement(Char->GetCharacterMovement())) { return; }
+                const UCharacterMovementComponent* CMC = Char->GetCharacterMovement();
+                const FVector V = CMC ? CMC->Velocity : FVector::ZeroVector;
+                UE_LOG(LogTemp, Warning,
+                    TEXT("[HL.Damage] t=%.2f amount=%.1f type=%s causer=%s inLanded=%d mode=%d surfing=%d vel=(%.0f,%.0f,%.0f)"),
+                    Char->GetWorld() ? Char->GetWorld()->GetTimeSeconds() : 0.0f,
+                    DamageAmount, DamageType ? *DamageType->GetClass()->GetName() : TEXT("none"),
+                    DamageCauser ? *DamageCauser->GetName() : TEXT("none"),
+                    GHLInLanded ? 1 : 0, CMC ? (int32)CMC->MovementMode : -1, GHLWasSurfing ? 1 : 0,
+                    V.X, V.Y, V.Z);
+            });
+
+        // Start of the movement tick: clear this tick's surf contacts (filled during UE's move by the
+        // ComputeSlideVector hook) and, for HL.Debug, snapshot the velocity before the move.
+        SUBSCRIBE_METHOD_VIRTUAL(UFGCharacterMovementComponent::TickComponent, Sample,
+            [](auto& Scope, UFGCharacterMovementComponent* Self, float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+            {
+                if (!HLIsLocalPlayerMovement(Self)) { return; }
+                GHLContactNormals.Reset();
+                GHLDbgVelTickStart = Self->Velocity;
             });
 
         // Per-frame: slope-landing speed redirect + hold-to-auto-bhop.
@@ -572,6 +678,9 @@ namespace HLMovementHooks
                 {
                     FVector& SurfVel = GHLSurfVel;
                     bool bSurfingNow = false;
+                    const FVector DbgVelPostMove = Self->Velocity; // HL.Debug: velocity after UE's move, before we touch it
+                    FVector DbgTraceN = FVector::ZeroVector;      // HL.Debug: surf floor-trace normal (zero = no hit)
+                    bool bSurfRampContact = false;                // touched an actual ramp (not just a wall) this tick
                     if (S.bSurf && Self->MovementMode == MOVE_Falling && Self->UpdatedComponent)
                     {
                         if (const UWorld* World = Self->GetWorld())
@@ -585,21 +694,37 @@ namespace HLMovementHooks
                             const FVector End = Center - FVector(0.0f, 0.0f, HalfHeight + 30.0f);
                             FCollisionQueryParams Params(FName(TEXT("HLSurfFloor")), false, Self->GetOwner());
                             FHitResult Hit;
+                            bool bTraceRamp = false;
+                            FVector TraceN = FVector::ZeroVector;
                             if (World->LineTraceSingleByChannel(Hit, Center, End, ECC_Visibility, Params))
                             {
-                                const FVector N = Hit.ImpactNormal;
-                                if (N.Z > 0.1f && N.Z < Self->GetWalkableFloorZ()) // a ramp: not wall/ceiling, not walkable
-                                {
-                                    bSurfingNow = true;
-                                    if (!GHLWasSurfing) { SurfVel = Self->Velocity; }     // seed on surf entry
-                                    SurfVel.Z += Self->GetGravityZ() * DeltaTime;          // gravity (GetGravityZ < 0)
-                                    const FVector WishDir = HLComputeWishDir(Self);
-                                    const float WishSpeed = Self->GetIsSprinting() ? S.Params.SprintMaxSpeed : S.Params.MaxSpeed;
-                                    SurfVel = HLMovementCore::AirAccelerate(SurfVel, WishDir, WishSpeed, S.Params.AirSpeedCap, S.Params.AirAccelerate, DeltaTime);
-                                    SurfVel = HLMovementCore::ClipVelocity(SurfVel, N, 1.0f);
-                                    Self->Velocity = SurfVel;
-                                }
+                                TraceN = Hit.ImpactNormal;
+                                DbgTraceN = TraceN;
+                                bTraceRamp = TraceN.Z > 0.1f && TraceN.Z < Self->GetWalkableFloorZ(); // a ramp: not wall/ceiling, not walkable
                             }
+                            // Real contacts this tick (steep surfaces UE slid us along). These win over the
+                            // floor trace: on a curved ramp the surface straight below is not the one we
+                            // are riding (an upward bend's steeper face is ahead of us), and the trace also
+                            // loses steep sections entirely. The trace stays the fallback for frames where we
+                            // skim the face without touching it.
+                            const bool bContact = GHLContactNormals.Num() > 0;
+                            if (bTraceRamp || bContact)
+                            {
+                                bSurfingNow = true;
+                                if (!GHLWasSurfing) { SurfVel = Self->Velocity; }     // seed on surf entry
+                                SurfVel.Z += Self->GetGravityZ() * DeltaTime;          // gravity (GetGravityZ < 0)
+                                const FVector WishDir = HLComputeWishDir(Self);
+                                const float WishSpeed = Self->GetIsSprinting() ? S.Params.SprintMaxSpeed : S.Params.MaxSpeed;
+                                SurfVel = HLMovementCore::AirAccelerate(SurfVel, WishDir, WishSpeed, S.Params.AirSpeedCap, S.Params.AirAccelerate, DeltaTime);
+                                SurfVel = bContact
+                                    ? HLMovementCore::ClipToContactPlanes(SurfVel, GHLContactNormals)
+                                    : HLMovementCore::ClipVelocity(SurfVel, TraceN, 1.0f);
+                                Self->Velocity = SurfVel;
+                            }
+                            // A surf launch (for the fall-damage exemption) needs a real ramp, not a wall
+                            // bump: the floor trace on a ramp, or a contact that faces at least a bit upward.
+                            for (const FVector& N : GHLContactNormals) { bSurfRampContact |= N.Z > 0.1f; }
+                            bSurfRampContact |= bTraceRamp;
                         }
                     }
                     if (GHLWasSurfing && !bSurfingNow) { Self->Velocity = SurfVel; } // launch off the ramp carrying the surf velocity
@@ -607,7 +732,7 @@ namespace HLMovementHooks
                     // Mark the airborne arc as a surf launch so its eventual landing is exempt from fall
                     // damage (the launch turns horizontal speed into vertical, which the vertical-only
                     // strip can't cover). Sticky until the next Landed consumes it.
-                    if (bSurfingNow) { GHLSurfLaunchActive = true; }
+                    if (bSurfRampContact) { GHLSurfLaunchActive = true; }
                     // Safety: once we're back on the ground (and not surfing) the launch arc is over. Landed
                     // normally consumes the flag, but landing in water flips to MOVE_Swimming without firing
                     // Landed, which would leave the flag stale and wrongly exempt a later landing. Clear here
@@ -616,6 +741,24 @@ namespace HLMovementHooks
                     else if (Self->IsMovingOnGround()) { GHLSurfLaunchActive = false; }
 
                     if (S.bDebug) { FHLDebugState::Get().bSurfing = bSurfingNow; }
+
+                    // HL.Debug per-frame surf trace, written only while airborne AND touching something
+                    // (surf trace hit a ramp, or UE slid along a surface this tick). Shows, frame by frame,
+                    // what UE's move did to the velocity (start -> postMove) vs what we then asserted (out),
+                    // against the floor-trace normal we clipped with and the real contact normal UE slid on.
+                    if (S.bDebug && Self->MovementMode == MOVE_Falling && (bSurfingNow || GHLContactNormals.Num() > 0))
+                    {
+                        const FVector& A = GHLDbgVelTickStart;
+                        const FVector& B = DbgVelPostMove;
+                        const FVector& C = Self->Velocity;
+                        const FVector& T = DbgTraceN;
+                        const FVector Cn = GHLContactNormals.Num() > 0 ? GHLContactNormals.Last() : FVector::ZeroVector;
+                        UE_LOG(LogTemp, Warning,
+                            TEXT("[HL.Surf] t=%.3f surf=%d start=(%.0f,%.0f,%.0f)|%.0f postMove=(%.0f,%.0f,%.0f)|%.0f out=(%.0f,%.0f,%.0f)|%.0f traceN=(%.2f,%.2f,%.2f) contacts=%d contactN=(%.2f,%.2f,%.2f)"),
+                            Self->GetWorld() ? Self->GetWorld()->GetTimeSeconds() : 0.0f, bSurfingNow ? 1 : 0,
+                            A.X, A.Y, A.Z, A.Size(), B.X, B.Y, B.Z, B.Size(), C.X, C.Y, C.Z, C.Size(),
+                            T.X, T.Y, T.Z, GHLContactNormals.Num(), Cn.X, Cn.Y, Cn.Z);
+                    }
                 }
 
                 // Only the local player reaches here; last-frame state lives in file-scope statics that
@@ -740,6 +883,11 @@ namespace HLMovementHooks
                 // Surf any surface too steep to walk on (Normal.Z below the walkable threshold).
                 const float WalkableZ = CMC->GetWalkableFloorZ();
                 const bool bSteepFalling = (CMC->MovementMode == MOVE_Falling && Normal.Z < WalkableZ);
+                // Record the real contact for this tick's surf integration (steep, not a ceiling).
+                if (S.bSurf && bSteepFalling && Normal.Z > -0.1f && GHLContactNormals.Num() < 8)
+                {
+                    GHLContactNormals.Add(Normal.GetSafeNormal());
+                }
                 if (S.bDebug)
                 {
                     FHLDebugState& D = FHLDebugState::Get();

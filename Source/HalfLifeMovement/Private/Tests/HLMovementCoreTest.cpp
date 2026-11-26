@@ -77,3 +77,36 @@ bool FHLMoveWaterTest::RunTest(const FString&)
     TestEqual(TEXT("zero velocity stays zero"), R.Size(), 0.0);
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHLMoveClipContactsTest, "HalfLifeMovement.Core.ClipToContactPlanes",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHLMoveClipContactsTest::RunTest(const FString&)
+{
+    // Upward (concave) bend: moving along the flat part (+X) into a steeper face ahead that tilts back
+    // (normal leans -X). The redirect must turn the motion UP the face -- this is what surfing up a
+    // curved ramp needs, and what the straight-down floor trace could not see.
+    const FVector Steep(-0.5f, 0.0f, 0.8660254f);
+    FVector R = HLMovementCore::ClipToContactPlanes(FVector(1000, 0, 0), { Steep });
+    TestTrue(TEXT("concave bend: redirected upward"), R.Z > 400.0);
+    TestTrue(TEXT("concave bend: (750,0,433)"), R.Equals(FVector(750, 0, 433.0127), 0.01));
+    TestTrue(TEXT("concave bend: no velocity into the face"), FVector::DotProduct(R, Steep) > -0.01);
+
+    // Moving away from a contact: leave it alone (don't glue the player to the surface).
+    const FVector Away(-500, 0, 866);
+    R = HLMovementCore::ClipToContactPlanes(Away, { Steep });
+    TestTrue(TEXT("moving away is unchanged"), R.Equals(Away, 0.01));
+
+    // V-shaped crease (two faces at once): no plane's single clip works, so slide along the crease.
+    const FVector N1(-0.7071068f, 0.0f, 0.7071068f), N2(0.7071068f, 0.0f, 0.7071068f);
+    R = HLMovementCore::ClipToContactPlanes(FVector(0, 300, -1000), { N1, N2 });
+    TestTrue(TEXT("crease: moves along the crease line"), R.Equals(FVector(0, 300, 0), 0.01));
+    TestTrue(TEXT("crease: not into face 1"), FVector::DotProduct(R, N1) > -0.01);
+    TestTrue(TEXT("crease: not into face 2"), FVector::DotProduct(R, N2) > -0.01);
+
+    // No contacts: unchanged. Duplicate normals behave like one.
+    R = HLMovementCore::ClipToContactPlanes(FVector(1000, 0, 0), {});
+    TestTrue(TEXT("no contacts is a no-op"), R.Equals(FVector(1000, 0, 0), 0.01));
+    R = HLMovementCore::ClipToContactPlanes(FVector(1000, 0, 0), { Steep, Steep });
+    TestTrue(TEXT("duplicate normals act like one"), R.Equals(FVector(750, 0, 433.0127), 0.01));
+    return true;
+}

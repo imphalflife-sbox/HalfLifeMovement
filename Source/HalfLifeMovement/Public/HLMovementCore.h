@@ -25,4 +25,13 @@ namespace HLMovementCore
     FVector AirAccelerate(const FVector& Velocity, const FVector& WishDir, float WishSpeed, float AirSpeedCap, float AirAccel, float DeltaTime);
     FVector WaterMove(const FVector& Velocity, const FVector& WishDir, float WishSpeed, float Accel, float Friction, float DeltaTime);
     FVector ClipVelocity(const FVector& Velocity, const FVector& PlaneNormal, float Overbounce);
+
+    /**
+     * PM_FlyMove-style clip of a full 3D velocity against the surfaces actually touched this frame
+     * (unit normals). Only planes the velocity moves INTO are clipped (moving away is untouched); if
+     * no single clip leaves the velocity out of every plane, it slides along the crease of two
+     * planes, else stops against them. Used by surf so curved (e.g. upward-bending) ramps redirect
+     * the velocity along the face really being ridden.
+     */
+    FVector ClipToContactPlanes(const FVector& Velocity, const TArray<FVector>& Normals);
 }

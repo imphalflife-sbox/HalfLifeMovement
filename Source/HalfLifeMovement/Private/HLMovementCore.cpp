@@ -70,4 +70,38 @@ namespace HLMovementCore
         const float Backoff = FVector::DotProduct(Velocity, PlaneNormal) * Overbounce;
         return Velocity - PlaneNormal * Backoff;
     }
+
+    FVector ClipToContactPlanes(const FVector& Velocity, const TArray<FVector>& Normals)
+    {
+        // Only the planes the velocity is moving into, de-duplicated.
+        TArray<FVector, TInlineAllocator<4>> Planes;
+        for (const FVector& N : Normals)
+        {
+            if (FVector::DotProduct(Velocity, N) >= 0.0f) { continue; }
+            bool bDup = false;
+            for (const FVector& P : Planes) { bDup |= FVector::DotProduct(P, N) > 0.999f; }
+            if (!bDup) { Planes.Add(N); }
+        }
+        if (Planes.Num() == 0) { return Velocity; }
+
+        // PM_FlyMove: find a single-plane clip that leaves the velocity out of every other plane.
+        constexpr float Eps = -0.01f;
+        for (int32 i = 0; i < Planes.Num(); ++i)
+        {
+            const FVector V = ClipVelocity(Velocity, Planes[i], 1.0f);
+            bool bOk = true;
+            for (int32 j = 0; j < Planes.Num() && bOk; ++j)
+            {
+                if (j != i && FVector::DotProduct(V, Planes[j]) < Eps) { bOk = false; }
+            }
+            if (bOk) { return V; }
+        }
+        // Two planes: slide along their crease. More: wedged, stop against them.
+        if (Planes.Num() == 2)
+        {
+            const FVector Dir = FVector::CrossProduct(Planes[0], Planes[1]).GetSafeNormal();
+            return Dir * FVector::DotProduct(Dir, Velocity);
+        }
+        return FVector::ZeroVector;
+    }
 }
