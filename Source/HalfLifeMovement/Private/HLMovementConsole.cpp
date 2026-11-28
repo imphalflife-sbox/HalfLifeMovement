@@ -22,6 +22,7 @@ namespace HLMovementConsole
         GConfig->SetBool (HLSection, TEXT("MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity, File);
         GConfig->SetBool (HLSection, TEXT("SlopeLandBoost"),           S.bSlopeLandBoost, File);
         GConfig->SetBool (HLSection, TEXT("Surf"),                     S.bSurf, File);
+        GConfig->SetFloat(HLSection, TEXT("SurfAirAccelerate"),        S.SurfAirAccelerate, File);
         GConfig->SetBool (HLSection, TEXT("ConveyorMomentum"),         S.bConveyorMomentum, File);
         GConfig->SetBool (HLSection, TEXT("ABH"),                      S.bABH, File);
         GConfig->SetFloat(HLSection, TEXT("ABHBoost"),                S.ABHBoost, File);
@@ -76,6 +77,7 @@ namespace HLMovementConsole
         GConfig->GetBool (HLSection, TEXT("MaintainHorizontalVelocity"), S.bMaintainHorizontalVelocity, File);
         GConfig->GetBool (HLSection, TEXT("SlopeLandBoost"),           S.bSlopeLandBoost, File);
         GConfig->GetBool (HLSection, TEXT("Surf"),                     S.bSurf, File);
+        GConfig->GetFloat(HLSection, TEXT("SurfAirAccelerate"),        S.SurfAirAccelerate, File);
         GConfig->GetBool (HLSection, TEXT("ConveyorMomentum"),         S.bConveyorMomentum, File);
         GConfig->GetBool (HLSection, TEXT("ABH"),                      S.bABH, File);
         GConfig->GetFloat(HLSection, TEXT("ABHBoost"),                S.ABHBoost, File);
@@ -117,10 +119,10 @@ namespace HLMovementConsole
     {
         const FHLMovementSettings& S = FHLMovementSettings::Get();
         const FString Line = FString::Printf(
-            TEXT("[HL] enabled=%d autohop=%d dedBhop=%d bhopKey=%s jumpKeyWarn=%d conveyor=%d abh=%d abhMinInterval=%.2f jumpSound=%d vertFallDmg=%d surfNoFallDmg=%d | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f paraGlide=%d paraFall=%.0f speedo=%d unit=%d | swim=%d shark=%d waterScale=%.2f waterAccel=%.1f waterFric=%.1f sink=%d sinkSpd=%.0f breachZ=%.0f breachImm=%.2f"),
+            TEXT("[HL] enabled=%d autohop=%d dedBhop=%d bhopKey=%s jumpKeyWarn=%d conveyor=%d abh=%d abhMinInterval=%.2f jumpSound=%d vertFallDmg=%d surfNoFallDmg=%d surfAirAccel=%.0f | accel=%.1f airaccel=%.1f friction=%.1f stopspeed=%.0f airspeedcap=%.0f maxspeed=%.0f sprint=%.0f | parachuteDrag=%.2f paraGlide=%d paraFall=%.0f speedo=%d unit=%d | swim=%d shark=%d waterScale=%.2f waterAccel=%.1f waterFric=%.1f sink=%d sinkSpd=%.0f breachZ=%.0f breachImm=%.2f"),
             S.bEnabled ? 1 : 0, S.bAutoHop ? 1 : 0, S.bDedicatedBhopKey ? 1 : 0, *S.BhopKey, S.bJumpKeyWarning ? 1 : 0,
             S.bConveyorMomentum ? 1 : 0, S.bABH ? 1 : 0,
-            S.ABHMinInterval, S.bJumpSound ? 1 : 0, S.bVerticalFallDamageOnly ? 1 : 0, S.bSurfNoFallDamage ? 1 : 0,
+            S.ABHMinInterval, S.bJumpSound ? 1 : 0, S.bVerticalFallDamageOnly ? 1 : 0, S.bSurfNoFallDamage ? 1 : 0, S.SurfAirAccelerate,
             S.Params.Accelerate, S.Params.AirAccelerate, S.Params.Friction, S.Params.StopSpeed,
             S.Params.AirSpeedCap, S.Params.MaxSpeed, S.Params.SprintMaxSpeed,
             S.ParachuteDragScale, S.bParachuteHLGlide ? 1 : 0, S.ParachuteFallSpeed, S.bSpeedometer ? 1 : 0, S.SpeedUnit,
@@ -193,6 +195,9 @@ namespace HLMovementConsole
         static FAutoConsoleVariableRef CVarSurf(
             TEXT("HL.Surf"), S.bSurf,
             TEXT("1 = ride non-walkable ramps while airborne (own velocity: gravity+airaccel+clip); climb/launch up them."));
+        static FAutoConsoleVariableRef CVarSurfAirAccel(
+            TEXT("HL.SurfAirAccelerate"), S.SurfAirAccelerate,
+            TEXT("Air acceleration while surfing, Source formula (default 150, like CSS surf servers). Higher = strafing into a ramp cancels a fall faster. Normal air control uses HL.AirAccelerate."));
         static FAutoConsoleVariableRef CVarConveyorMomentum(
             TEXT("HL.ConveyorMomentum"), S.bConveyorMomentum,
             TEXT("1 = ride conveyor belts and keep the speed (additive) when you jump/walk off; 0 = no belt push."));

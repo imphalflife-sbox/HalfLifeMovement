@@ -46,6 +46,31 @@ bool FHLMoveAirAccelTest::RunTest(const FString&)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHLMoveSurfAirAccelTest, "HalfLifeMovement.Core.SurfAirAccelerate",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHLMoveSurfAirAccelTest::RunTest(const FString&)
+{
+    const float Cap = 100.0f, Accel = 150.0f, WishSpeed = 600.0f, Dt = 0.01f;
+    // Steering against your momentum (sliding off a ramp, strafing back into it): the rate uses the full
+    // wish speed, 150*600*0.01 = 900 cm/s this step -- vs 150*100*0.01 = 150 with the capped AirAccelerate.
+    FVector R = HLMovementCore::SurfAirAccelerate(FVector(0, -1000, 0), FVector(0, 1, 0), WishSpeed, Cap, Accel, Dt);
+    TestEqual(TEXT("opposing: full-rate correction"), R.Y, -100.0, 0.01);
+    const FVector Capped = HLMovementCore::AirAccelerate(FVector(0, -1000, 0), FVector(0, 1, 0), WishSpeed, Cap, Accel, Dt);
+    TestEqual(TEXT("capped variant is much weaker"), Capped.Y, -850.0, 0.01);
+    // Sideways strafe: still limited by the cap (no runaway gain).
+    R = HLMovementCore::SurfAirAccelerate(FVector(1000, 0, 0), FVector(0, 1, 0), WishSpeed, Cap, Accel, Dt);
+    TestEqual(TEXT("perpendicular: capped at AirSpeedCap"), R.Y, 100.0, 0.01);
+    // Already at the cap along the wish: nothing added.
+    R = HLMovementCore::SurfAirAccelerate(FVector(0, 100, 0), FVector(0, 1, 0), WishSpeed, Cap, Accel, Dt);
+    TestEqual(TEXT("at the cap: no change"), R.Y, 100.0, 0.01);
+    // Vertical speed is untouched; no wish is a no-op.
+    R = HLMovementCore::SurfAirAccelerate(FVector(0, -1000, -500), FVector(0, 1, 0), WishSpeed, Cap, Accel, Dt);
+    TestEqual(TEXT("Z preserved"), R.Z, -500.0, 0.01);
+    R = HLMovementCore::SurfAirAccelerate(FVector(0, -1000, 0), FVector::ZeroVector, WishSpeed, Cap, Accel, Dt);
+    TestEqual(TEXT("zero wish: no-op"), R.Y, -1000.0, 0.01);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHLMoveClipTest, "HalfLifeMovement.Core.ClipVelocity",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FHLMoveClipTest::RunTest(const FString&)

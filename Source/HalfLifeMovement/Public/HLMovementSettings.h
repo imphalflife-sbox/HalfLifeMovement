@@ -21,6 +21,7 @@ struct FHLMovementSettings
     float SlopeGravityScale = 0.0f;            // >0: gravity-along-slope while walking (downhill speed gain; modest values)
     float WalkableFloorAngle = 35.0f;          // <0: leave vanilla; >=0: max walkable slope (deg). Lower => steeper ramps become surfable (slide instead of walk)
     bool  bSurf = true;                        // while airborne, ride a non-walkable surface (own the velocity: gravity+airaccel+clip) so you can climb/launch up it
+    float SurfAirAccelerate = 150.0f;           // air accel WHILE SURFING, Source formula (rate uses the full wish speed, like sv_airaccelerate on CSS surf servers): lets you strafe into a ramp to cancel a fall. Normal air keeps Params.AirAccelerate
     bool  bConveyorMomentum = true;            // ride conveyor belts (additive) and keep the speed when you jump/walk off them
     bool  bABH = true;                          // accelerated back hopping (boost when pressing back over the cap)
     float ABHBoost = 0.5f;                      // sets the ABH cap: capRef = MaxSpeed*(1+this); over capRef, back-hops gain

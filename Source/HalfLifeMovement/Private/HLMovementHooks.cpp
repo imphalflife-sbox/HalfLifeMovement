@@ -726,7 +726,9 @@ namespace HLMovementHooks
                                 SurfVel.Z += Self->GetGravityZ() * DeltaTime;          // gravity (GetGravityZ < 0)
                                 const FVector WishDir = HLComputeWishDir(Self);
                                 const float WishSpeed = Self->GetIsSprinting() ? S.Params.SprintMaxSpeed : S.Params.MaxSpeed;
-                                SurfVel = HLMovementCore::AirAccelerate(SurfVel, WishDir, WishSpeed, S.Params.AirSpeedCap, S.Params.AirAccelerate, DeltaTime);
+                                // Source-style surf air accel (full wish speed as the rate): strafing into the ramp can
+                                // cancel a fall onto it, as on CSS surf servers. Normal air control is unchanged.
+                                SurfVel = HLMovementCore::SurfAirAccelerate(SurfVel, WishDir, WishSpeed, S.Params.AirSpeedCap, S.SurfAirAccelerate, DeltaTime);
                                 SurfVel = bContact
                                     ? HLMovementCore::ClipToContactPlanes(SurfVel, GHLContactNormals)
                                     : HLMovementCore::ClipVelocity(SurfVel, TraceN, 1.0f);

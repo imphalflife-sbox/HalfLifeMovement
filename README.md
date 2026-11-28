@@ -67,6 +67,7 @@ Open the in-game console and use the `HL.*` commands:
 | `HL.BhopKey <key>` | Key that triggers bhops (default `SpaceBar`; see Setup) |
 | `HL.AutoHop`, `HL.ABH`, `HL.Surf`, `HL.Swim`, `HL.JumpSound` | Toggle individual features |
 | `HL.Accelerate`, `HL.AirAccelerate`, `HL.Friction`, `HL.MaxSpeed` | Tune the movement model |
+| `HL.SurfAirAccelerate` | Air acceleration while surfing (default 150, like CSS surf servers): how fast strafing into a ramp cancels a fall |
 
 The full list of commands is in [docs/TESTING.md](docs/TESTING.md).
 Settings are stored in `HalfLifeMovement.ini` in the game's Saved folder.

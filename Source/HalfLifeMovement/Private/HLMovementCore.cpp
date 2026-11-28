@@ -43,6 +43,21 @@ namespace HLMovementCore
         return V;
     }
 
+    FVector SurfAirAccelerate(const FVector& Velocity, const FVector& WishDir, float WishSpeed, float AirSpeedCap, float AirAccel, float DeltaTime)
+    {
+        const FVector Dir(WishDir.X, WishDir.Y, 0.0f);
+        const float WishSpd = FMath::Min(WishSpeed, AirSpeedCap);           // the cap limits the reachable speed...
+        const float CurrentSpeed = FVector::DotProduct(FVector(Velocity.X, Velocity.Y, 0.0f), Dir);
+        const float AddSpeed = WishSpd - CurrentSpeed;
+        if (AddSpeed <= 0.0f) { return Velocity; }
+        float AccelSpeed = AirAccel * WishSpeed * DeltaTime;                // ...but the rate uses the full wish speed
+        if (AccelSpeed > AddSpeed) { AccelSpeed = AddSpeed; }
+        FVector V = Velocity;
+        V.X += AccelSpeed * Dir.X;
+        V.Y += AccelSpeed * Dir.Y;
+        return V;
+    }
+
     FVector WaterMove(const FVector& Velocity, const FVector& WishDir, float WishSpeed, float Accel, float Friction, float DeltaTime)
     {
         // Faithful PM_WaterMove. Unlike ground/air, this acts on the FULL 3D velocity and uses

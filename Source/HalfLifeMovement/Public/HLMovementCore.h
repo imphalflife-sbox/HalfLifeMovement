@@ -23,6 +23,13 @@ namespace HLMovementCore
     FVector ApplyFriction(const FVector& Velocity, float Friction, float StopSpeed, float DeltaTime);
     FVector Accelerate(const FVector& Velocity, const FVector& WishDir, float WishSpeed, float Accel, float DeltaTime);
     FVector AirAccelerate(const FVector& Velocity, const FVector& WishDir, float WishSpeed, float AirSpeedCap, float AirAccel, float DeltaTime);
+    /**
+     * Source/HL1 PM_AirAccelerate as written, for surfing: AirSpeedCap limits the speed reachable along
+     * WishDir, but the RATE uses the uncapped WishSpeed. Steering against your own momentum is then strong,
+     * which is what lets a surfer cancel a fall onto a ramp. (AirAccelerate uses the capped speed for both;
+     * normal air control was tuned around that.)
+     */
+    FVector SurfAirAccelerate(const FVector& Velocity, const FVector& WishDir, float WishSpeed, float AirSpeedCap, float AirAccel, float DeltaTime);
     FVector WaterMove(const FVector& Velocity, const FVector& WishDir, float WishSpeed, float Accel, float Friction, float DeltaTime);
     FVector ClipVelocity(const FVector& Velocity, const FVector& PlaneNormal, float Overbounce);
 
