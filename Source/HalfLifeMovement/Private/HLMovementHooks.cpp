@@ -1,4 +1,5 @@
 #include "HLMovementHooks.h"
+#include "HLMovementAPI.h"
 #include "HLMovementCore.h"
 #include "HLMovementSettings.h"
 #include "HLMovementSpeedometer.h"
@@ -216,6 +217,10 @@ static bool    GHLWasBhopHeld = false;
 // integration clips against THESE rather than the straight-down floor trace, because on a curved
 // (e.g. upward-bending) ramp the surface below you is not the one you are riding. Local player only.
 static TArray<FVector> GHLContactNormals;
+// The latest steep contact (a slide hit while falling, or the surf floor trace) and when, for
+// HLMovementAPI::GetSurfContact (other mods: SurfRamps boosters). Local player only.
+static FHitResult GHLLastSurfHit;
+static double     GHLLastSurfHitTime = -1.0e9;
 // HL.Debug per-frame surf trace ([HL.Surf] log): velocity at the start of the movement tick.
 static FVector GHLDbgVelTickStart = FVector::ZeroVector;
 
@@ -293,6 +298,7 @@ static void HLSyncPlayerStateOwner(const UCharacterMovementComponent* Self)
     GHLLastJumpTimeSeconds = -1000.0f;
     GHLJumpSoundFoot = 0;
     GHLSurfVel = FVector::ZeroVector;
+    GHLLastSurfHitTime = -1.0e9;
     GHLLastMode = MOVE_None;
     GHLLastVelocity = FVector::ZeroVector;
     GHLWasBhopHeld = false;
@@ -701,6 +707,11 @@ namespace HLMovementHooks
                                 TraceN = Hit.ImpactNormal;
                                 DbgTraceN = TraceN;
                                 bTraceRamp = TraceN.Z > 0.1f && TraceN.Z < Self->GetWalkableFloorZ(); // a ramp: not wall/ceiling, not walkable
+                                if (bTraceRamp)
+                                {
+                                    GHLLastSurfHit = Hit;
+                                    GHLLastSurfHitTime = World->GetTimeSeconds();
+                                }
                             }
                             // Real contacts this tick (steep surfaces UE slid us along). These win over the
                             // floor trace: on a curved ramp the surface straight below is not the one we
@@ -887,6 +898,11 @@ namespace HLMovementHooks
                 if (S.bSurf && bSteepFalling && Normal.Z > -0.1f && GHLContactNormals.Num() < 8)
                 {
                     GHLContactNormals.Add(Normal.GetSafeNormal());
+                    if (const UWorld* World = CMC->GetWorld())
+                    {
+                        GHLLastSurfHit = Hit;
+                        GHLLastSurfHitTime = World->GetTimeSeconds();
+                    }
                 }
                 if (S.bDebug)
                 {
@@ -930,5 +946,34 @@ namespace HLMovementHooks
         SUBSCRIBE_METHOD_VIRTUAL_AFTER(AHUD::DrawHUD, GetMutableDefault<AFGHUD>(),
             [](AHUD* HUD) { HLSpeedometer::DrawTo(HUD); });
         }
+    }
+}
+
+namespace HLMovementAPI
+{
+    static UFGCharacterMovementComponent* HLLocalMovement(const ACharacter* Character)
+    {
+        UFGCharacterMovementComponent* CMC = Character
+            ? Cast<UFGCharacterMovementComponent>(Character->GetCharacterMovement()) : nullptr;
+        return (CMC != nullptr && HLMovementHooks::HLIsLocalPlayerMovement(CMC)) ? CMC : nullptr;
+    }
+
+    bool GetSurfContact(const ACharacter* Character, FHitResult& OutHit)
+    {
+        const UFGCharacterMovementComponent* CMC = HLLocalMovement(Character);
+        const UWorld* World = CMC ? CMC->GetWorld() : nullptr;
+        if (World == nullptr || GHLStateOwner.Get() != CMC) { return false; }
+        if (World->GetTimeSeconds() - GHLLastSurfHitTime > 0.1) { return false; }
+        OutHit = GHLLastSurfHit;
+        return true;
+    }
+
+    void AddVelocity(ACharacter* Character, const FVector& DeltaV)
+    {
+        UFGCharacterMovementComponent* CMC = HLLocalMovement(Character);
+        if (CMC == nullptr) { return; }
+        CMC->Velocity += DeltaV;
+        // While surfing, HL's integration carries GHLSurfVel and asserts it each frame: add there too.
+        if (GHLWasSurfing && GHLStateOwner.Get() == CMC) { GHLSurfVel += DeltaV; }
     }
 }

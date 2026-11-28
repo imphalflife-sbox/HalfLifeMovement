@@ -1,8 +1,8 @@
 {
 	"FileVersion": 3,
-	"Version": 1,
-	"VersionName": "1.0.0",
-	"SemVersion": "1.0.0",
+	"Version": 2,
+	"VersionName": "1.1.0",
+	"SemVersion": "1.1.0",
 	"GameVersion": ">=491125",
 	"FriendlyName": "Half-Life Movement",
 	"Description": "Replaces base ground and air movement with a GoldSrc (Half-Life 1) style model: ground accel + friction, air-strafing, momentum bunnyhopping, ABH, auto-bhop, surf, and a speedometer. Singleplayer and multiplayer host only; when joining someone else's game, movement stays vanilla.",
